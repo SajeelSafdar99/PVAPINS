@@ -1,0 +1,11 @@
+{
+  "name": "pvapins",
+  "private": true,
+  "version": "0.1.0",
+  "scripts": {
+    "e2e:replay": "node e2e/replay-session.mjs"
+  },
+  "dependencies": {
+    "playwright": "^1.63.0"
+  }
+}

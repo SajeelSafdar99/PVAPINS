@@ -1,0 +1,54 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <link rel="stylesheet" href="popup.css" />
+  </head>
+  <body>
+    <div class="wrap">
+      <h1>Apply session</h1>
+      <p class="sub">Sign in, fetch the JSON assigned to you, then apply it.</p>
+
+      <div class="card">
+        <label>
+          API URL
+          <input id="apiUrl" type="url" placeholder="https://your-app.vercel.app" />
+        </label>
+      </div>
+
+      <div id="authCard" class="card">
+        <label>
+          Email
+          <input id="email" type="email" autocomplete="username" />
+        </label>
+        <label>
+          Password
+          <input id="password" type="password" autocomplete="current-password" />
+        </label>
+        <button id="loginBtn">Sign in</button>
+      </div>
+
+      <div id="userCard" class="card hidden">
+        <p id="who" class="hint"></p>
+        <button id="logoutBtn" class="secondary">Sign out</button>
+      </div>
+
+      <div id="actionCard" class="card hidden">
+        <p class="hint">
+          Open this popup from Incognito if you want the session in a private
+          window. Enable <strong>Allow in Incognito</strong> first.
+        </p>
+        <button id="fetchBtn">Fetch assigned session</button>
+        <button id="applyBtn" class="secondary" disabled>Apply and open Grammarly</button>
+        <button id="downloadBtn" class="secondary" disabled>Download JSON</button>
+      </div>
+
+      <div class="card">
+        <div id="status" class="status">Enter your API URL and sign in.</div>
+      </div>
+    </div>
+    <script src="config.js"></script>
+    <script src="session.js"></script>
+    <script src="popup.js"></script>
+  </body>
+</html>

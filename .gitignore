@@ -1,0 +1,11 @@
+node_modules/
+test-results/
+*.png
+.DS_Store
+.env
+.env.*
+!.env.example
+grammarly-session*.json
+web/.next/
+web/extensions/
+web/public/downloads/*.zip
