@@ -7,7 +7,7 @@ export { COOKIE_NAME, signToken, verifyToken };
 export type { TokenUser };
 
 export async function hashPassword(password: string) {
-  return bcrypt.hash(password, 10);
+  return bcrypt.hash(password, 12);
 }
 
 export async function verifyPassword(password: string, passwordHash: string) {
@@ -63,5 +63,5 @@ export function normalizeEmail(email: unknown) {
 }
 
 export function validPassword(password: unknown) {
-  return typeof password === "string" && password.length >= 8;
+  return typeof password === "string" && password.length >= 8 && password.length <= 128;
 }

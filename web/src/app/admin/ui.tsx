@@ -2,7 +2,7 @@
 
 import { FormEvent, useEffect, useRef, useState } from "react";
 import { ExtensionDownload } from "@/components/ExtensionDownload";
-import { Guide } from "@/components/Guide";
+import { Guide, installZipSteps } from "@/components/Guide";
 import { LogoutButton } from "@/components/LogoutButton";
 
 type UserRow = {
@@ -120,7 +120,7 @@ export function AdminDashboard({ adminEmail }: { adminEmail: string }) {
           />
           <input
             className="rounded-lg border border-[#2a3344] bg-[#10141c] px-3 py-2 outline-none focus:border-[#3dd6c6]"
-            type="text"
+            type="password"
             placeholder="Password (8+ chars)"
             value={password}
             onChange={(e) => setPassword(e.target.value)}
@@ -227,13 +227,46 @@ export function AdminDashboard({ adminEmail }: { adminEmail: string }) {
 
       <Guide
         title="Admin guide"
-        steps={[
-          "Download Capture, load it unpacked, and export a Grammarly session JSON from a logged-in Chrome profile.",
-          "Add a user with email, password, and that JSON. The session is stored and assigned immediately.",
-          "Send the user this website URL plus their email and password.",
-          "They sign in here, download the Apply extension, sign in again inside the extension, and fetch the assigned JSON.",
-          "This table shows Assigned when a JSON is stored for that user. Use Replace JSON to give them a new file.",
-          "If you test Apply yourself, open it from Incognito and enable Allow in Incognito.",
+        sections={[
+          {
+            title: "How to install a downloaded zip",
+            steps: installZipSteps,
+          },
+          {
+            title: "Capture a Grammarly session",
+            steps: [
+              {
+                title: "Install the Capture extension using the steps above.",
+              },
+              {
+                title: "Log in to Grammarly in this same Chrome profile.",
+                detail: "Open app.grammarly.com and stay signed in. You can then switch to any other tab.",
+              },
+              {
+                title: "Click the Capture extension and choose Download session JSON.",
+                detail: "The popup must say grauth: found. If it says missing, sign in to Grammarly again and export.",
+              },
+            ],
+          },
+          {
+            title: "Add a user and assign that file",
+            steps: [
+              {
+                title: "Fill in the user’s email and password.",
+              },
+              {
+                title: "Click the dashed box and choose the JSON you just exported.",
+                detail: "The box will show the filename. Add user stays disabled until a file is selected.",
+              },
+              {
+                title: "Send them this website URL plus that email and password.",
+                detail: "They sign in here, download Apply, and fetch the assigned session. They do not upload a JSON.",
+              },
+              {
+                title: "Use Replace JSON later if you need to give them a new file.",
+              },
+            ],
+          },
         ]}
       />
     </main>

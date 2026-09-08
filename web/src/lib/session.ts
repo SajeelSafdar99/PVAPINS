@@ -1,16 +1,62 @@
+const MAX_BYTES = 1_000_000;
+const MAX_COOKIES = 150;
+
+function isGrammarlyDomain(domain: unknown) {
+  const host = String(domain || "").replace(/^\./, "").toLowerCase();
+  return host === "grammarly.com" || host.endsWith(".grammarly.com");
+}
+
 export function parseSessionPayload(raw: unknown) {
   if (!raw || typeof raw !== "object" || !Array.isArray((raw as { cookies?: unknown }).cookies)) {
     throw new Error("Invalid session file: missing cookies array.");
   }
 
-  const payload = raw as { cookies: { name?: string }[] };
-  if (JSON.stringify(payload).length > 2_000_000) {
+  const encoded = JSON.stringify(raw);
+  if (encoded.length > MAX_BYTES) {
     throw new Error("Session file is too large.");
   }
 
+  const input = raw as { cookies: Record<string, unknown>[]; storage?: unknown };
+  if (input.cookies.length === 0 || input.cookies.length > MAX_COOKIES) {
+    throw new Error("Session file has an invalid number of cookies.");
+  }
+
+  const cookies = input.cookies
+    .filter((cookie) => cookie && typeof cookie.name === "string" && typeof cookie.value === "string")
+    .filter((cookie) => isGrammarlyDomain(cookie.domain))
+    .map((cookie) => ({
+      name: String(cookie.name).slice(0, 128),
+      value: String(cookie.value).slice(0, 4096),
+      domain: String(cookie.domain),
+      path: typeof cookie.path === "string" ? cookie.path : "/",
+      secure: Boolean(cookie.secure),
+      httpOnly: Boolean(cookie.httpOnly),
+      sameSite: cookie.sameSite,
+      session: Boolean(cookie.session),
+      hostOnly: Boolean(cookie.hostOnly),
+      expirationDate: typeof cookie.expirationDate === "number" ? cookie.expirationDate : undefined,
+      storeId: undefined,
+      partitionKey: cookie.partitionKey,
+    }));
+
+  const hasGrauth = cookies.some((cookie) => cookie.name === "grauth");
+  if (!hasGrauth) {
+    throw new Error("Session JSON is missing grauth. Export again while logged into Grammarly.");
+  }
+
   return {
-    payload,
-    cookieCount: payload.cookies.length,
-    hasGrauth: payload.cookies.some((cookie) => cookie.name === "grauth"),
+    payload: {
+      version: 1,
+      source: "grammarly-web",
+      cookies,
+      storage: input.storage && typeof input.storage === "object" ? input.storage : {},
+      summary: {
+        count: cookies.length,
+        hasGrauth: true,
+        hasCsrf: cookies.some((cookie) => cookie.name === "csrf-token"),
+      },
+    },
+    cookieCount: cookies.length,
+    hasGrauth: true,
   };
 }

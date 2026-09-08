@@ -9,6 +9,7 @@ import {
   verifyPassword,
 } from "@/lib/auth";
 import { corsHeaders, json, options } from "@/lib/http";
+import { clientIp, rateLimit } from "@/lib/rate-limit";
 
 export function OPTIONS(request: Request) {
   return options(request);
@@ -20,6 +21,11 @@ export async function POST(request: Request) {
     const body = await request.json();
     const email = normalizeEmail(body.email);
     const password = typeof body.password === "string" ? body.password : "";
+
+    const limited = rateLimit(`login:${clientIp(request)}:${email}`, 8, 15 * 60 * 1000);
+    if (!limited.ok) {
+      return json(request, { error: "Too many login attempts. Try again in a few minutes." }, 429);
+    }
 
     if (!email || !password) {
       return json(request, { error: "Email and password are required." }, 400);
@@ -39,7 +45,6 @@ export async function POST(request: Request) {
     response.cookies.set(COOKIE_NAME, token, cookieOptions());
     return response;
   } catch (error) {
-    const message = error instanceof Error ? error.message : "Login failed.";
-    return json(request, { error: message }, 500);
+    return json(request, { error: "Login failed." }, 500);
   }
 }

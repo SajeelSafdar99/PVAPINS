@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { ExtensionDownload } from "@/components/ExtensionDownload";
-import { Guide } from "@/components/Guide";
+import { Guide, installZipSteps } from "@/components/Guide";
 import { LogoutButton } from "@/components/LogoutButton";
 
 export function UserDashboard({ email }: { email: string }) {
@@ -51,13 +51,35 @@ export function UserDashboard({ email }: { email: string }) {
 
       <Guide
         title="User guide"
-        steps={[
-          "Download the Apply zip above and unzip it.",
-          "Open chrome://extensions, turn on Developer mode, click Load unpacked, and choose the unzipped folder.",
-          "Open the extension popup. The API URL should already be this website. Sign in with the same email and password you used here.",
-          "Click Fetch assigned session. That pulls the JSON the admin stored for you.",
-          "To use it in this browser, click Apply and open Grammarly. For Incognito, enable Allow in Incognito and open the popup from the Incognito window.",
-          "You can also download the JSON file from the popup if you need a local copy.",
+        sections={[
+          {
+            title: "How to install the zip",
+            steps: installZipSteps,
+          },
+          {
+            title: "Sign in and fetch your session",
+            steps: [
+              {
+                title: "Open the Apply extension from Chrome’s toolbar.",
+              },
+              {
+                title: "Set the API URL to this website if it is empty.",
+                detail: "Example: https://your-app.vercel.app with no slash at the end.",
+              },
+              {
+                title: "Sign in with the same email and password you used on this website.",
+              },
+              {
+                title: "Click Fetch assigned session.",
+                detail: "That downloads the JSON the admin assigned to your account.",
+              },
+              {
+                title: "Click Apply and open Grammarly.",
+                detail:
+                  "To use Incognito: chrome://extensions → the Apply extension → Details → Allow in Incognito, then open the popup from an Incognito window.",
+              },
+            ],
+          },
         ]}
       />
     </main>

@@ -18,7 +18,7 @@ export async function signToken(user: TokenUser) {
   return new SignJWT({ email: user.email, role: user.role })
     .setProtectedHeader({ alg: "HS256" })
     .setSubject(user.id)
-    .setExpirationTime("7d")
+    .setExpirationTime("2d")
     .sign(secret());
 }
 
