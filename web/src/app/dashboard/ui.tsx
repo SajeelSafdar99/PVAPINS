@@ -3,13 +3,14 @@
 import { useEffect, useState } from "react";
 import { AppShell } from "@/components/AppShell";
 import { ExtensionDownload } from "@/components/ExtensionDownload";
+import { api } from "@/lib/api";
 
 export function UserDashboard({ email }: { email: string }) {
   const [sessionNote, setSessionNote] = useState("Checking for an assigned session…");
   const [ready, setReady] = useState(false);
 
   useEffect(() => {
-    fetch("/api/sessions/status")
+    api("/api/sessions/status")
       .then(async (response) => {
         if (!response.ok) {
           setSessionNote("Could not check session status.");

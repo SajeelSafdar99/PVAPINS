@@ -1,0 +1,397 @@
+openapi: 3.0.3
+info:
+  title: PVAPINS API
+  version: 1.0.0
+  description: |
+    Contract for the PVAPINS website and Chrome extensions.
+
+    Current Next.js app serves these routes on the same origin.
+    A replacement backend must implement the same paths, fields, and auth.
+    Point the frontend at it with `NEXT_PUBLIC_API_BASE_URL` (no trailing slash).
+    Leave that env empty to keep using this app's `/api` routes.
+
+    Auth: `Authorization: Bearer <token>` from login, or the `pvapins_token` httpOnly cookie.
+    Only `SUPER_ADMIN` can create users or upload/assign session JSON.
+    Users can only fetch the session assigned to them.
+servers:
+  - url: /
+    description: Same origin (default)
+  - url: "{baseUrl}"
+    description: Custom backend
+    variables:
+      baseUrl:
+        default: https://api.example.com
+tags:
+  - name: Auth
+  - name: Admin
+  - name: Sessions
+security:
+  - bearerAuth: []
+  - cookieAuth: []
+paths:
+  /api/auth/login:
+    post:
+      tags: [Auth]
+      security: []
+      summary: Sign in as admin or user
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/LoginRequest"
+      responses:
+        "200":
+          description: Signed in
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/LoginResponse"
+        "400":
+          $ref: "#/components/responses/Error"
+        "401":
+          $ref: "#/components/responses/Error"
+        "429":
+          $ref: "#/components/responses/Error"
+  /api/auth/logout:
+    post:
+      tags: [Auth]
+      summary: Clear the auth cookie
+      responses:
+        "200":
+          description: Signed out
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Ok"
+  /api/auth/me:
+    get:
+      tags: [Auth]
+      summary: Current user
+      responses:
+        "200":
+          description: Authenticated user
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [user]
+                properties:
+                  user:
+                    $ref: "#/components/schemas/User"
+        "401":
+          $ref: "#/components/responses/Error"
+  /api/admin/users:
+    get:
+      tags: [Admin]
+      summary: List users (admin only)
+      responses:
+        "200":
+          description: Users
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/AdminUserRow"
+        "403":
+          $ref: "#/components/responses/Error"
+    post:
+      tags: [Admin]
+      summary: Create a user and assign a session JSON (admin only)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateUserRequest"
+      responses:
+        "201":
+          description: User created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CreateUserResponse"
+        "400":
+          $ref: "#/components/responses/Error"
+        "403":
+          $ref: "#/components/responses/Error"
+        "409":
+          $ref: "#/components/responses/Error"
+  /api/admin/users/{id}:
+    delete:
+      tags: [Admin]
+      summary: Delete a user (admin only)
+      parameters:
+        - $ref: "#/components/parameters/UserId"
+      responses:
+        "200":
+          description: Deleted
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Ok"
+        "400":
+          $ref: "#/components/responses/Error"
+        "403":
+          $ref: "#/components/responses/Error"
+        "404":
+          $ref: "#/components/responses/Error"
+  /api/admin/users/{id}/session:
+    post:
+      tags: [Admin]
+      summary: Replace the session JSON assigned to a user (admin only)
+      parameters:
+        - $ref: "#/components/parameters/UserId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SessionPayload"
+      responses:
+        "200":
+          description: Assigned
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SessionAssignResponse"
+        "400":
+          $ref: "#/components/responses/Error"
+        "403":
+          $ref: "#/components/responses/Error"
+        "404":
+          $ref: "#/components/responses/Error"
+  /api/sessions:
+    post:
+      tags: [Sessions]
+      summary: Rejected — users cannot upload sessions
+      responses:
+        "403":
+          $ref: "#/components/responses/Error"
+  /api/sessions/me:
+    get:
+      tags: [Sessions]
+      summary: Fetch the session assigned to the signed-in user
+      responses:
+        "200":
+          description: Assigned session
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SessionFetchResponse"
+        "401":
+          $ref: "#/components/responses/Error"
+        "403":
+          $ref: "#/components/responses/Error"
+        "404":
+          $ref: "#/components/responses/Error"
+        "429":
+          $ref: "#/components/responses/Error"
+  /api/sessions/status:
+    get:
+      tags: [Sessions]
+      summary: Whether the signed-in user has an assigned session
+      responses:
+        "200":
+          description: Status
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SessionStatus"
+        "401":
+          $ref: "#/components/responses/Error"
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+    cookieAuth:
+      type: apiKey
+      in: cookie
+      name: pvapins_token
+  parameters:
+    UserId:
+      name: id
+      in: path
+      required: true
+      schema:
+        type: string
+  responses:
+    Error:
+      description: Error
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/Error"
+  schemas:
+    Error:
+      type: object
+      required: [error]
+      properties:
+        error:
+          type: string
+    Ok:
+      type: object
+      required: [ok]
+      properties:
+        ok:
+          type: boolean
+          example: true
+    LoginRequest:
+      type: object
+      required: [email, password]
+      properties:
+        email:
+          type: string
+          format: email
+        password:
+          type: string
+          minLength: 8
+          maxLength: 128
+    User:
+      type: object
+      required: [id, email, role]
+      properties:
+        id:
+          type: string
+        email:
+          type: string
+          format: email
+        role:
+          type: string
+          enum: [SUPER_ADMIN, USER]
+    LoginResponse:
+      type: object
+      required: [token, user]
+      properties:
+        token:
+          type: string
+          description: JWT for Authorization Bearer header (extensions and custom backends)
+        user:
+          $ref: "#/components/schemas/User"
+    CreateUserRequest:
+      type: object
+      required: [email, password, session]
+      properties:
+        email:
+          type: string
+          format: email
+        password:
+          type: string
+          minLength: 8
+          maxLength: 128
+        session:
+          $ref: "#/components/schemas/SessionPayload"
+    CreateUserResponse:
+      type: object
+      required: [id, email, role, cookieCount, hasGrauth]
+      properties:
+        id:
+          type: string
+        email:
+          type: string
+        role:
+          type: string
+          enum: [USER]
+        cookieCount:
+          type: integer
+        hasGrauth:
+          type: boolean
+    AdminUserRow:
+      type: object
+      required: [id, email, role, createdAt, hasSession, sessionUpdatedAt]
+      properties:
+        id:
+          type: string
+        email:
+          type: string
+        role:
+          type: string
+          enum: [SUPER_ADMIN, USER]
+        createdAt:
+          type: string
+          format: date-time
+        hasSession:
+          type: boolean
+        sessionUpdatedAt:
+          type: string
+          format: date-time
+          nullable: true
+    SessionCookie:
+      type: object
+      required: [name, value, domain]
+      properties:
+        name:
+          type: string
+        value:
+          type: string
+        domain:
+          type: string
+          description: Must be grammarly.com or a grammarly.com subdomain
+        path:
+          type: string
+        secure:
+          type: boolean
+        httpOnly:
+          type: boolean
+        sameSite:
+          type: string
+          enum: [no_restriction, lax, strict, unspecified]
+        session:
+          type: boolean
+        hostOnly:
+          type: boolean
+        expirationDate:
+          type: number
+    SessionPayload:
+      type: object
+      required: [cookies]
+      properties:
+        cookies:
+          type: array
+          minItems: 1
+          maxItems: 150
+          items:
+            $ref: "#/components/schemas/SessionCookie"
+        storage:
+          type: object
+          additionalProperties: true
+        version:
+          type: integer
+        source:
+          type: string
+        summary:
+          type: object
+          additionalProperties: true
+      description: Must include a cookie named grauth. Non-Grammarly cookies are dropped.
+    SessionAssignResponse:
+      type: object
+      required: [ok, cookieCount, hasGrauth]
+      properties:
+        ok:
+          type: boolean
+        cookieCount:
+          type: integer
+        hasGrauth:
+          type: boolean
+    SessionFetchResponse:
+      type: object
+      required: [payload, updatedAt]
+      properties:
+        payload:
+          $ref: "#/components/schemas/SessionPayload"
+        updatedAt:
+          type: string
+          format: date-time
+    SessionStatus:
+      type: object
+      required: [hasSession, updatedAt]
+      properties:
+        hasSession:
+          type: boolean
+        updatedAt:
+          type: string
+          format: date-time
+          nullable: true

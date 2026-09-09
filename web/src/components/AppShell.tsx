@@ -9,6 +9,7 @@ const NAV: Record<Role, { href: string; label: string }[]> = {
   admin: [
     { href: "/admin", label: "Users" },
     { href: "/admin/guide", label: "Admin guide" },
+    { href: "/docs", label: "API" },
   ],
   user: [
     { href: "/dashboard", label: "Extension" },
@@ -32,7 +33,7 @@ export function AppShell({
   children: React.ReactNode;
 }) {
   return (
-    <div className="min-h-full bg-[#0b1018]">
+    <div className="flex min-h-screen flex-col bg-[#0b1018]">
       <header className="border-b border-[#2a3344] bg-[#121826]/90 backdrop-blur">
         <div className="mx-auto flex max-w-5xl flex-wrap items-center justify-between gap-4 px-6 py-4">
           <div>
@@ -57,7 +58,7 @@ export function AppShell({
           </nav>
         </div>
       </header>
-      <main className="mx-auto max-w-5xl px-6 py-10">
+      <main className="mx-auto w-full max-w-5xl flex-1 px-6 py-10">
         <div className="mb-8">
           <p className="text-sm text-[#3dd6c6]">{role === "admin" ? "Super admin" : "User"}</p>
           <h1 className="mt-1 text-3xl font-semibold tracking-tight">{title}</h1>

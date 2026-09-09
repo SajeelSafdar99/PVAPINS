@@ -3,6 +3,7 @@
 import { FormEvent, useEffect, useRef, useState } from "react";
 import { AppShell } from "@/components/AppShell";
 import { ExtensionDownload } from "@/components/ExtensionDownload";
+import { api } from "@/lib/api";
 
 type UserRow = {
   id: string;
@@ -31,7 +32,7 @@ export function AdminDashboard({ adminEmail }: { adminEmail: string }) {
   const assignRefs = useRef<Record<string, HTMLInputElement | null>>({});
 
   async function loadUsers() {
-    const response = await fetch("/api/admin/users");
+    const response = await api("/api/admin/users");
     if (!response.ok) return;
     setUsers(await response.json());
   }
@@ -50,9 +51,8 @@ export function AdminDashboard({ adminEmail }: { adminEmail: string }) {
         return;
       }
       const session = await readSessionFile(sessionFile);
-      const response = await fetch("/api/admin/users", {
+      const response = await api("/api/admin/users", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ email, password, session }),
       });
       const data = await response.json();
@@ -74,9 +74,8 @@ export function AdminDashboard({ adminEmail }: { adminEmail: string }) {
   async function assignSession(id: string, file: File) {
     try {
       const session = await readSessionFile(file);
-      const response = await fetch(`/api/admin/users/${id}/session`, {
+      const response = await api(`/api/admin/users/${id}/session`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
         body: JSON.stringify(session),
       });
       const data = await response.json();
@@ -92,7 +91,7 @@ export function AdminDashboard({ adminEmail }: { adminEmail: string }) {
 
   async function removeUser(id: string) {
     if (!confirm("Delete this user and their assigned session?")) return;
-    await fetch(`/api/admin/users/${id}`, { method: "DELETE" });
+    await api(`/api/admin/users/${id}`, { method: "DELETE" });
     await loadUsers();
   }
 

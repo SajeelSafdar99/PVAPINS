@@ -2,6 +2,7 @@
 
 import { FormEvent, useState } from "react";
 import { useRouter } from "next/navigation";
+import { api, rememberToken } from "@/lib/api";
 
 export default function LoginPage() {
   const router = useRouter();
@@ -15,9 +16,8 @@ export default function LoginPage() {
     setBusy(true);
     setError("");
     try {
-      const response = await fetch("/api/auth/login", {
+      const response = await api("/api/auth/login", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ email, password }),
       });
       const data = await response.json();
@@ -25,6 +25,7 @@ export default function LoginPage() {
         setError(data.error || "Login failed.");
         return;
       }
+      rememberToken(data.token);
       router.push(data.user?.role === "SUPER_ADMIN" ? "/admin" : "/dashboard");
       router.refresh();
     } catch {
@@ -35,7 +36,7 @@ export default function LoginPage() {
   }
 
   return (
-    <main className="relative flex min-h-full items-center justify-center overflow-hidden bg-[#0b1018] px-6 py-16">
+    <main className="relative flex min-h-screen items-center justify-center overflow-hidden bg-[#0b1018] px-6 py-16">
       <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_top,_rgba(61,214,198,0.12),_transparent_45%)]" />
       <div className="relative w-full max-w-md">
         <p className="mb-3 text-xs font-semibold tracking-[0.28em] text-[#3dd6c6]">PVAPINS</p>
