@@ -16,6 +16,7 @@ export default async function AdminGuidePage() {
       current="/admin/guide"
       title="Admin guide"
       subtitle="How to install Capture, export a Grammarly JSON, and assign it to a user."
+      backHref="/admin"
     >
       <AdminGuide />
     </AppShell>

@@ -3,28 +3,84 @@ info:
   title: PVAPINS API
   version: 1.0.0
   description: |
-    Contract for the PVAPINS website and Chrome extensions.
+    Full contract for the PVAPINS website, admin UI, user dashboard, and Chrome extensions.
 
-    Current Next.js app serves these routes on the same origin.
-    A replacement backend must implement the same paths, fields, and auth.
-    Point the frontend at it with `NEXT_PUBLIC_API_BASE_URL` (no trailing slash).
-    Leave that env empty to keep using this app's `/api` routes.
+    ## Switching backends
+    Implement every path below with the same request/response fields.
+    Then set `NEXT_PUBLIC_API_BASE_URL` to the new API origin (no trailing slash).
+    Leave it empty to keep using this Next.js app's `/api` routes.
+    Extensions use the same base URL (packed as DEFAULT_API_URL, or typed in the popup).
 
-    Auth: `Authorization: Bearer <token>` from login, or the `pvapins_token` httpOnly cookie.
-    Only `SUPER_ADMIN` can create users or upload/assign session JSON.
-    Users can only fetch the session assigned to them.
+    ## Auth
+    Login returns `{ token, user }` and also sets cookie `pvapins_token`.
+    Send `Authorization: Bearer <token>` (extensions and custom backends) **or** the cookie.
+    JWT: HS256, claims `sub` (user id), `email`, `role` (`SUPER_ADMIN` | `USER`), expiry 2 days.
+
+    ## Who can do what
+    - `SUPER_ADMIN`: list/create/delete users, upload and assign session JSON.
+    - `USER`: fetch own assigned session and status. Cannot upload JSON.
+    - `POST /api/sessions` always returns 403.
+
+    ## Session JSON rules
+    - Body must include `cookies` array (1–150 items).
+    - Payload size max 1,000,000 characters.
+    - Cookie `name` max 128 chars, `value` max 4096 chars.
+    - Only cookies whose `domain` is `grammarly.com` or `*.grammarly.com` are stored.
+    - A cookie named `grauth` is required.
+    - Emails are trimmed and lowercased.
+
+    ## Rate limits
+    - Login: 8 attempts / 15 minutes per IP + email.
+    - `GET /api/sessions/me`: 30 requests / minute per IP.
+
+    ## CORS
+    Allowed origins: `NEXT_PUBLIC_APP_URL`, `chrome-extension://*`, localhost.
+    Preflight: `OPTIONS` on every `/api/*` route.
+    Headers: `Content-Type, Authorization`. Methods: `GET, POST, DELETE, OPTIONS`.
+
+    ## Environment (frontend)
+    - `NEXT_PUBLIC_API_BASE_URL` — API origin, optional
+    - `NEXT_PUBLIC_APP_URL` — this website origin (for cookies/CORS/extension default)
+
+    ## Environment (this Next.js backend)
+    - `DATABASE_URL` — Postgres
+    - `JWT_SECRET` — HS256 secret
+    - `SUPER_ADMIN_EMAIL` / `SUPER_ADMIN_PASSWORD` — created on first login if missing
+
+    ## Website pages (this Next.js app)
+    - `GET /` — redirects to `/admin` or `/dashboard` (or `/login`)
+    - `GET /login` — public sign-in form
+    - `GET /admin` — SUPER_ADMIN only (middleware)
+    - `GET /admin/guide` — SUPER_ADMIN only
+    - `GET /dashboard` — USER only (admins are sent to `/admin`)
+    - `GET /dashboard/guide` — USER only
+    - `GET /docs` — Swagger UI wrapped in the site header
+    - `GET /downloads/pvapins-capture.zip`
+    - `GET /downloads/pvapins-apply.zip`
+    - `GET /openapi.yaml`
+
+    ## Session JSON 400 errors
+    - `Invalid session file: missing cookies array.`
+    - `Session file is too large.`
+    - `Session file has an invalid number of cookies.`
+    - `Session JSON is missing grauth. Export again while logged into Grammarly.`
 servers:
   - url: /
-    description: Same origin (default)
+    description: Same origin (default Next.js API)
   - url: "{baseUrl}"
-    description: Custom backend
+    description: Custom backend (NEXT_PUBLIC_API_BASE_URL)
     variables:
       baseUrl:
         default: https://api.example.com
 tags:
   - name: Auth
+    description: Login, logout, current user
   - name: Admin
+    description: SUPER_ADMIN only — users and session assignment
   - name: Sessions
+    description: Assigned Grammarly session for a USER
+  - name: Assets
+    description: Website downloads (not required on a custom API)
 security:
   - bearerAuth: []
   - cookieAuth: []
@@ -33,30 +89,76 @@ paths:
     post:
       tags: [Auth]
       security: []
-      summary: Sign in as admin or user
+      summary: Sign in as SUPER_ADMIN or USER
+      description: |
+        Creates the super admin from env if it does not exist.
+        Sets httpOnly cookie `pvapins_token` (SameSite=Lax, Secure in production, Max-Age 7 days).
+        Always return `token` for Bearer use.
       requestBody:
         required: true
         content:
           application/json:
             schema:
               $ref: "#/components/schemas/LoginRequest"
+            example:
+              email: test@demo.com
+              password: "12345678"
       responses:
         "200":
           description: Signed in
+          headers:
+            Set-Cookie:
+              schema:
+                type: string
+                example: pvapins_token=eyJ...; Path=/; HttpOnly; SameSite=Lax
           content:
             application/json:
               schema:
                 $ref: "#/components/schemas/LoginResponse"
         "400":
-          $ref: "#/components/responses/Error"
+          description: Missing email or password
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+              example:
+                error: Email and password are required.
         "401":
-          $ref: "#/components/responses/Error"
+          description: Bad credentials
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+              example:
+                error: Invalid email or password.
         "429":
-          $ref: "#/components/responses/Error"
+          description: Too many attempts
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+              example:
+                error: Too many login attempts. Try again in a few minutes.
+        "500":
+          description: Server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+              example:
+                error: Login failed.
+    options:
+      tags: [Auth]
+      security: []
+      summary: CORS preflight
+      responses:
+        "204":
+          description: No content
   /api/auth/logout:
     post:
       tags: [Auth]
       summary: Clear the auth cookie
+      description: Sets `pvapins_token` to empty with Max-Age=0.
       responses:
         "200":
           description: Signed out
@@ -64,10 +166,17 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/Ok"
+    options:
+      tags: [Auth]
+      security: []
+      summary: CORS preflight
+      responses:
+        "204":
+          description: No content
   /api/auth/me:
     get:
       tags: [Auth]
-      summary: Current user
+      summary: Current authenticated user
       responses:
         "200":
           description: Authenticated user
@@ -80,11 +189,19 @@ paths:
                   user:
                     $ref: "#/components/schemas/User"
         "401":
-          $ref: "#/components/responses/Error"
+          $ref: "#/components/responses/Unauthorized"
+    options:
+      tags: [Auth]
+      security: []
+      summary: CORS preflight
+      responses:
+        "204":
+          description: No content
   /api/admin/users:
     get:
       tags: [Admin]
-      summary: List users (admin only)
+      summary: List all users (admin only)
+      description: Includes SUPER_ADMIN and USER rows, plus whether a session is assigned.
       responses:
         "200":
           description: Users
@@ -95,10 +212,11 @@ paths:
                 items:
                   $ref: "#/components/schemas/AdminUserRow"
         "403":
-          $ref: "#/components/responses/Error"
+          $ref: "#/components/responses/AdminOnly"
     post:
       tags: [Admin]
-      summary: Create a user and assign a session JSON (admin only)
+      summary: Create a USER and assign a session JSON (admin only)
+      description: Session is required. Password 8–128 chars. Email must be unique. Role is always USER.
       requestBody:
         required: true
         content:
@@ -107,21 +225,61 @@ paths:
               $ref: "#/components/schemas/CreateUserRequest"
       responses:
         "201":
-          description: User created
+          description: User created and session stored
           content:
             application/json:
               schema:
                 $ref: "#/components/schemas/CreateUserResponse"
         "400":
-          $ref: "#/components/responses/Error"
+          description: Invalid email, password, or session JSON
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+              examples:
+                email:
+                  value:
+                    error: A valid email is required.
+                password:
+                  value:
+                    error: Password must be at least 8 characters.
+                missingSession:
+                  value:
+                    error: Assign a session JSON when adding a user.
+                missingCookies:
+                  value:
+                    error: "Invalid session file: missing cookies array."
+                tooLarge:
+                  value:
+                    error: Session file is too large.
+                cookieCount:
+                  value:
+                    error: Session file has an invalid number of cookies.
+                grauth:
+                  value:
+                    error: Session JSON is missing grauth. Export again while logged into Grammarly.
         "403":
-          $ref: "#/components/responses/Error"
+          $ref: "#/components/responses/AdminOnly"
         "409":
-          $ref: "#/components/responses/Error"
+          description: Email already in use
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+              example:
+                error: That email is already in use.
+    options:
+      tags: [Admin]
+      security: []
+      summary: CORS preflight
+      responses:
+        "204":
+          description: No content
   /api/admin/users/{id}:
     delete:
       tags: [Admin]
-      summary: Delete a user (admin only)
+      summary: Delete a USER (admin only)
+      description: Cannot delete yourself or another SUPER_ADMIN. Cascades the assigned session.
       parameters:
         - $ref: "#/components/parameters/UserId"
       responses:
@@ -132,15 +290,33 @@ paths:
               schema:
                 $ref: "#/components/schemas/Ok"
         "400":
-          $ref: "#/components/responses/Error"
+          description: Cannot delete this account
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+              examples:
+                self:
+                  value:
+                    error: You cannot delete your own admin account.
+                admin:
+                  value:
+                    error: Cannot delete a super admin.
         "403":
-          $ref: "#/components/responses/Error"
+          $ref: "#/components/responses/AdminOnly"
         "404":
-          $ref: "#/components/responses/Error"
+          $ref: "#/components/responses/NotFound"
+    options:
+      tags: [Admin]
+      security: []
+      summary: CORS preflight
+      responses:
+        "204":
+          description: No content
   /api/admin/users/{id}/session:
     post:
       tags: [Admin]
-      summary: Replace the session JSON assigned to a user (admin only)
+      summary: Replace the session JSON for a USER (admin only)
       parameters:
         - $ref: "#/components/parameters/UserId"
       requestBody:
@@ -157,22 +333,61 @@ paths:
               schema:
                 $ref: "#/components/schemas/SessionAssignResponse"
         "400":
-          $ref: "#/components/responses/Error"
+          description: Invalid session JSON
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+              examples:
+                missingCookies:
+                  value:
+                    error: "Invalid session file: missing cookies array."
+                tooLarge:
+                  value:
+                    error: Session file is too large.
+                cookieCount:
+                  value:
+                    error: Session file has an invalid number of cookies.
+                grauth:
+                  value:
+                    error: Session JSON is missing grauth. Export again while logged into Grammarly.
         "403":
-          $ref: "#/components/responses/Error"
+          $ref: "#/components/responses/AdminOnly"
         "404":
-          $ref: "#/components/responses/Error"
+          $ref: "#/components/responses/NotFound"
+    options:
+      tags: [Admin]
+      security: []
+      summary: CORS preflight
+      responses:
+        "204":
+          description: No content
   /api/sessions:
     post:
       tags: [Sessions]
-      summary: Rejected — users cannot upload sessions
+      summary: Always rejected — users cannot upload sessions
+      description: Only SUPER_ADMIN may store JSON, via `/api/admin/users` or `/api/admin/users/{id}/session`.
       responses:
         "403":
-          $ref: "#/components/responses/Error"
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+              example:
+                error: Users cannot upload sessions. The admin assigns a JSON to each user.
+    options:
+      tags: [Sessions]
+      security: []
+      summary: CORS preflight
+      responses:
+        "204":
+          description: No content
   /api/sessions/me:
     get:
       tags: [Sessions]
-      summary: Fetch the session assigned to the signed-in user
+      summary: Fetch the session assigned to the signed-in USER
+      description: Role must be USER. SUPER_ADMIN receives 403.
       responses:
         "200":
           description: Assigned session
@@ -181,17 +396,37 @@ paths:
               schema:
                 $ref: "#/components/schemas/SessionFetchResponse"
         "401":
-          $ref: "#/components/responses/Error"
+          $ref: "#/components/responses/Unauthorized"
         "403":
-          $ref: "#/components/responses/Error"
+          description: Not a USER
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+              example:
+                error: Only user accounts can fetch an assigned session.
         "404":
-          $ref: "#/components/responses/Error"
+          description: No JSON assigned yet
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+              example:
+                error: No session assigned yet.
         "429":
-          $ref: "#/components/responses/Error"
+          $ref: "#/components/responses/RateLimited"
+    options:
+      tags: [Sessions]
+      security: []
+      summary: CORS preflight
+      responses:
+        "204":
+          description: No content
   /api/sessions/status:
     get:
       tags: [Sessions]
       summary: Whether the signed-in user has an assigned session
+      description: Does not return cookie values. Used by the user dashboard.
       responses:
         "200":
           description: Status
@@ -200,7 +435,108 @@ paths:
               schema:
                 $ref: "#/components/schemas/SessionStatus"
         "401":
-          $ref: "#/components/responses/Error"
+          $ref: "#/components/responses/Unauthorized"
+    options:
+      tags: [Sessions]
+      security: []
+      summary: CORS preflight
+      responses:
+        "204":
+          description: No content
+  /downloads/pvapins-capture.zip:
+    get:
+      tags: [Assets]
+      security: []
+      summary: Admin Capture extension zip
+      responses:
+        "200":
+          description: Zip file
+          content:
+            application/zip:
+              schema:
+                type: string
+                format: binary
+  /downloads/pvapins-apply.zip:
+    get:
+      tags: [Assets]
+      security: []
+      summary: User Apply extension zip
+      responses:
+        "200":
+          description: Zip file
+          content:
+            application/zip:
+              schema:
+                type: string
+                format: binary
+  /openapi.yaml:
+    get:
+      tags: [Assets]
+      security: []
+      summary: This OpenAPI document
+      responses:
+        "200":
+          description: YAML
+          content:
+            text/yaml:
+              schema:
+                type: string
+  /docs:
+    get:
+      tags: [Assets]
+      security: []
+      summary: Swagger UI with the site header and Back button
+      responses:
+        "200":
+          description: HTML
+          content:
+            text/html:
+              schema:
+                type: string
+  /login:
+    get:
+      tags: [Assets]
+      security: []
+      summary: Public sign-in page
+      responses:
+        "200":
+          description: HTML
+  /admin:
+    get:
+      tags: [Assets]
+      summary: Admin users page (SUPER_ADMIN cookie required)
+      responses:
+        "200":
+          description: HTML
+        "302":
+          description: Redirect to /login or /dashboard
+  /admin/guide:
+    get:
+      tags: [Assets]
+      summary: Admin install/export guide
+      responses:
+        "200":
+          description: HTML
+        "302":
+          description: Redirect if not SUPER_ADMIN
+  /dashboard:
+    get:
+      tags: [Assets]
+      summary: User extension page (USER cookie required)
+      responses:
+        "200":
+          description: HTML
+        "302":
+          description: Redirect to /login or /admin
+  /dashboard/guide:
+    get:
+      tags: [Assets]
+      summary: User install/apply guide
+      responses:
+        "200":
+          description: HTML
+        "302":
+          description: Redirect if not a USER
 components:
   securitySchemes:
     bearerAuth:
@@ -216,6 +552,7 @@ components:
       name: id
       in: path
       required: true
+      description: User id from create/list
       schema:
         type: string
   responses:
@@ -225,6 +562,38 @@ components:
         application/json:
           schema:
             $ref: "#/components/schemas/Error"
+    Unauthorized:
+      description: Missing or invalid token
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/Error"
+          example:
+            error: Unauthorized.
+    AdminOnly:
+      description: Caller is not SUPER_ADMIN
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/Error"
+          example:
+            error: Admin only.
+    NotFound:
+      description: User not found
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/Error"
+          example:
+            error: User not found.
+    RateLimited:
+      description: Too many requests
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/Error"
+          example:
+            error: Too many requests. Try again shortly.
   schemas:
     Error:
       type: object
@@ -248,8 +617,8 @@ components:
           format: email
         password:
           type: string
-          minLength: 8
-          maxLength: 128
+          minLength: 1
+          description: Required. Stored user passwords are 8–128 characters.
     User:
       type: object
       required: [id, email, role]
@@ -268,7 +637,7 @@ components:
       properties:
         token:
           type: string
-          description: JWT for Authorization Bearer header (extensions and custom backends)
+          description: JWT. Put in Authorization Bearer header.
         user:
           $ref: "#/components/schemas/User"
     CreateUserRequest:
@@ -299,6 +668,7 @@ components:
           type: integer
         hasGrauth:
           type: boolean
+          example: true
     AdminUserRow:
       type: object
       required: [id, email, role, createdAt, hasSession, sessionUpdatedAt]
@@ -325,13 +695,16 @@ components:
       properties:
         name:
           type: string
+          maxLength: 128
         value:
           type: string
+          maxLength: 4096
         domain:
           type: string
-          description: Must be grammarly.com or a grammarly.com subdomain
+          description: grammarly.com or a subdomain
         path:
           type: string
+          default: /
         secure:
           type: boolean
         httpOnly:
@@ -345,9 +718,22 @@ components:
           type: boolean
         expirationDate:
           type: number
+          description: Unix seconds. Omitted for session cookies.
+    SessionStorageOrigin:
+      type: object
+      properties:
+        local:
+          type: object
+          additionalProperties:
+            type: string
+        session:
+          type: object
+          additionalProperties:
+            type: string
     SessionPayload:
       type: object
       required: [cookies]
+      description: Must include grauth. Non-Grammarly cookies are dropped. Max ~1MB.
       properties:
         cookies:
           type: array
@@ -357,15 +743,24 @@ components:
             $ref: "#/components/schemas/SessionCookie"
         storage:
           type: object
-          additionalProperties: true
+          additionalProperties:
+            $ref: "#/components/schemas/SessionStorageOrigin"
+          description: "Keyed by origin, e.g. https://app.grammarly.com"
         version:
           type: integer
+          example: 1
         source:
           type: string
+          example: grammarly-web
         summary:
           type: object
-          additionalProperties: true
-      description: Must include a cookie named grauth. Non-Grammarly cookies are dropped.
+          properties:
+            count:
+              type: integer
+            hasGrauth:
+              type: boolean
+            hasCsrf:
+              type: boolean
     SessionAssignResponse:
       type: object
       required: [ok, cookieCount, hasGrauth]
