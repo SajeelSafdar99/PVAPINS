@@ -10,11 +10,11 @@ export type GuideSection = {
 
 export function Guide({ title, sections }: { title: string; sections: GuideSection[] }) {
   return (
-    <section className="space-y-6 rounded-2xl border border-[#2a3344] bg-[#181e29] p-5">
-      <h2 className="text-lg font-semibold">{title}</h2>
+    <section className="space-y-8">
+      <h2 className="sr-only">{title}</h2>
       {sections.map((section) => (
-        <div key={section.title}>
-          <h3 className="mb-3 text-sm font-semibold text-[#3dd6c6]">{section.title}</h3>
+        <div key={section.title} className="rounded-2xl border border-[#2a3344] bg-[#181e29] p-6">
+          <h3 className="mb-4 text-base font-semibold text-[#3dd6c6]">{section.title}</h3>
           <ol className="space-y-3">
             {section.steps.map((step, index) => (
               <li key={`${section.title}-${step.title}`} className="flex gap-3 text-sm leading-6 text-[#d5deec]">
