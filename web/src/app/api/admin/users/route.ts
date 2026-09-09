@@ -7,7 +7,6 @@ import {
   validPassword,
 } from "@/lib/auth";
 import { json, options } from "@/lib/http";
-import { parseSessionPayload } from "@/lib/session";
 
 export function OPTIONS(request: Request) {
   return options(request);
@@ -59,17 +58,6 @@ export async function POST(request: Request) {
     return json(request, { error: "Password must be at least 8 characters." }, 400);
   }
 
-  if (!body.session) {
-    return json(request, { error: "Assign a session JSON when adding a user." }, 400);
-  }
-
-  let session;
-  try {
-    session = parseSessionPayload(body.session);
-  } catch (error) {
-    return json(request, { error: error instanceof Error ? error.message : "Invalid session." }, 400);
-  }
-
   const exists = await prisma.user.findUnique({ where: { email } });
   if (exists) {
     return json(request, { error: "That email is already in use." }, 409);
@@ -80,19 +68,8 @@ export async function POST(request: Request) {
       email,
       passwordHash: await hashPassword(password),
       role: "USER",
-      session: { create: { payload: session.payload } },
     },
   });
 
-  return json(
-    request,
-    {
-      id: user.id,
-      email: user.email,
-      role: user.role,
-      cookieCount: session.cookieCount,
-      hasGrauth: session.hasGrauth,
-    },
-    201
-  );
+  return json(request, { id: user.id, email: user.email, role: user.role }, 201);
 }

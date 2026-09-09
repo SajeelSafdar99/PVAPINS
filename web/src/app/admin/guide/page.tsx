@@ -15,8 +15,7 @@ export default async function AdminGuidePage() {
       email={user.email}
       current="/admin/guide"
       title="Admin guide"
-      subtitle="How to install Capture, export a Grammarly JSON, and assign it to a user."
-      backHref="/admin"
+      subtitle="How to install Capture, export a Grammarly JSON, add users, and assign that file to everyone."
     >
       <AdminGuide />
     </AppShell>

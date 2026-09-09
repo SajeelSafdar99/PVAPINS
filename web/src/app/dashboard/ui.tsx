@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { AppShell } from "@/components/AppShell";
+import { ChangePasswordForm } from "@/components/ChangePasswordForm";
 import { ExtensionDownload } from "@/components/ExtensionDownload";
 import { api } from "@/lib/api";
 
@@ -52,6 +53,10 @@ export function UserDashboard({ email }: { email: string }) {
           href="/downloads/pvapins-apply.zip"
           filename="pvapins-apply.zip"
         />
+      </div>
+
+      <div className="mt-8 max-w-2xl">
+        <ChangePasswordForm />
       </div>
     </AppShell>
   );

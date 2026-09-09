@@ -42,6 +42,14 @@ export async function ensureSuperAdmin() {
     return existing;
   }
 
+  const currentAdmin = await prisma.user.findFirst({ where: { role: "SUPER_ADMIN" } });
+  if (currentAdmin) {
+    return prisma.user.update({
+      where: { id: currentAdmin.id },
+      data: { email },
+    });
+  }
+
   return prisma.user.create({
     data: { email, passwordHash: await hashPassword(password), role: "SUPER_ADMIN" },
   });

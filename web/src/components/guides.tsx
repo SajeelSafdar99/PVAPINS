@@ -23,21 +23,21 @@ export const adminGuideSections: GuideSection[] = [
     ],
   },
   {
-    title: "Create a user and assign the JSON",
+    title: "Create users and assign the JSON",
     steps: [
       {
-        title: "Open Users and enter an email and password.",
+        title: "Open Users and add each person with an email and password.",
       },
       {
-        title: "Click the dashed box and choose the JSON you exported.",
-        detail: "The box shows the filename. Add user stays disabled until a file is selected.",
+        title: "In Assign JSON, choose the file you exported and assign it.",
+        detail: "That one file is applied to every user. Use it again when you have a new export.",
       },
       {
         title: "Send the user this website URL plus their email and password.",
         detail: "They sign in as a user, download Apply, and fetch the session you assigned.",
       },
       {
-        title: "Use Replace JSON later if they need a new file.",
+        title: "Use Edit if you need to change a user’s email or password.",
       },
     ],
   },

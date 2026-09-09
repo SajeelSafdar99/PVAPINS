@@ -28,5 +28,4 @@ Open [http://localhost:3000](http://localhost:3000).
 2. Set **Root Directory** to `web`.
 3. Add the env vars from `.env.example`.
 4. Optional: set `NEXT_PUBLIC_APP_URL` to `https://your-app.vercel.app` so downloaded extensions come prefilled with the API URL.
-5. Later, to use a separate backend, implement [public/openapi.yaml](./public/openapi.yaml) (Swagger at `/docs`) and set `NEXT_PUBLIC_API_BASE_URL` to that API origin with no trailing slash.
-6. Deploy. The build packs the extension zips and runs `prisma migrate deploy`.
+5. Deploy. The build packs the extension zips and runs `prisma migrate deploy`.

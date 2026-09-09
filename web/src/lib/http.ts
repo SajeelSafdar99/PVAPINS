@@ -15,7 +15,7 @@ export function corsHeaders(request: Request) {
   const origin = allowedOrigin(request);
   const headers: Record<string, string> = {
     "Access-Control-Allow-Headers": "Content-Type, Authorization",
-    "Access-Control-Allow-Methods": "GET, POST, DELETE, OPTIONS",
+    "Access-Control-Allow-Methods": "GET, POST, PATCH, DELETE, OPTIONS",
     Vary: "Origin",
     "X-Content-Type-Options": "nosniff",
   };

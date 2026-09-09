@@ -7,20 +7,11 @@ export function OPTIONS(request: Request) {
   return options(request);
 }
 
-export async function POST(
-  request: Request,
-  { params }: { params: Promise<{ id: string }> }
-) {
+export async function POST(request: Request) {
   await ensureSuperAdmin();
   const admin = await userFromRequest(request);
   if (!admin || admin.role !== "SUPER_ADMIN") {
     return json(request, { error: "Admin only." }, 403);
-  }
-
-  const { id } = await params;
-  const user = await prisma.user.findUnique({ where: { id } });
-  if (!user || user.role !== "USER") {
-    return json(request, { error: "User not found." }, 404);
   }
 
   let session;
@@ -30,14 +21,27 @@ export async function POST(
     return json(request, { error: error instanceof Error ? error.message : "Invalid session." }, 400);
   }
 
-  await prisma.session.upsert({
-    where: { userId: id },
-    create: { userId: id, payload: session.payload },
-    update: { payload: session.payload },
+  const users = await prisma.user.findMany({
+    where: { role: "USER" },
+    select: { id: true },
   });
+  if (users.length === 0) {
+    return json(request, { error: "There are no users to assign this file to." }, 400);
+  }
+
+  await prisma.$transaction(
+    users.map((user) =>
+      prisma.session.upsert({
+        where: { userId: user.id },
+        create: { userId: user.id, payload: session.payload },
+        update: { payload: session.payload },
+      })
+    )
+  );
 
   return json(request, {
     ok: true,
+    assigned: users.length,
     cookieCount: session.cookieCount,
     hasGrauth: session.hasGrauth,
   });

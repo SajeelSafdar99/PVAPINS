@@ -17,7 +17,6 @@ export default async function UserGuidePage() {
       current="/dashboard/guide"
       title="User guide"
       subtitle="How to install Apply and fetch the session the admin assigned to you."
-      backHref="/dashboard"
     >
       <UserGuide />
     </AppShell>
