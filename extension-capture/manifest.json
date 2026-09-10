@@ -1,15 +1,26 @@
 {
   "manifest_version": 3,
   "name": "PVAPINS Capture (Admin)",
-  "version": "0.3.0",
-  "description": "Export a Grammarly web session JSON so an admin can assign it to a user.",
+  "version": "0.4.0",
+  "description": "Export a Grammarly web session and keep assigned cookies fresh from this Chrome profile.",
   "action": {
     "default_popup": "popup.html",
     "default_title": "Export Grammarly session"
   },
-  "permissions": ["cookies", "downloads", "scripting", "tabs"],
+  "permissions": ["alarms", "cookies", "downloads", "scripting", "storage", "tabs"],
   "host_permissions": [
     "*://*.grammarly.com/*",
-    "*://grammarly.com/*"
-  ]
+    "*://grammarly.com/*",
+    "http://localhost:3000/*",
+    "https://*.vercel.app/*"
+  ],
+  "optional_host_permissions": [
+    "http://*/*",
+    "https://*/*",
+    "*://*.pvapins.com/*",
+    "*://pvapins.com/*"
+  ],
+  "background": {
+    "service_worker": "background.js"
+  }
 }

@@ -7,12 +7,52 @@
   <body>
     <div class="wrap">
       <h1>Export session</h1>
-      <p class="sub">Admin tool: save a Grammarly JSON to assign on the website.</p>
+      <p class="sub">Stay logged into Grammarly here. Capture can keep every user updated.</p>
 
       <div class="card">
-        <p class="hint">
+        <label>
+          API URL
+          <input id="apiUrl" type="url" placeholder="https://your-app.vercel.app" />
+        </label>
+      </div>
+
+      <div id="authCard" class="card">
+        <label>
+          Admin email
+          <input id="email" type="email" autocomplete="username" />
+        </label>
+        <label>
+          Password
+          <input id="password" type="password" autocomplete="current-password" />
+        </label>
+        <button id="loginBtn">Sign in as admin</button>
+      </div>
+
+      <div id="userCard" class="card hidden">
+        <p id="who" class="hint"></p>
+        <label class="toggle">
+          <input id="autoRefresh" type="checkbox" />
+          <span>Keep session fresh — reread Grammarly cookies and assign them to every user</span>
+        </label>
+        <button id="syncBtn" class="secondary">Push fresh cookies now</button>
+        <button id="logoutBtn" class="secondary">Sign out</button>
+      </div>
+
+      <div id="demoCard" class="card hidden">
+        <label>
+          Site
+          <select id="target">
+            <option value="grammarly">Grammarly</option>
+            <option value="pvapins">PVAPins (local demo)</option>
+          </select>
+        </label>
+        <p class="hint">PVAPins export is local-only and is not packed into production zips.</p>
+      </div>
+
+      <div class="card">
+        <p id="hint" class="hint">
           Stay logged in at <code>app.grammarly.com</code> in this Chrome
-          profile, then export. You can be on any tab.
+          profile. You can be on any tab.
         </p>
         <button id="exportBtn">Download session JSON</button>
       </div>
@@ -21,6 +61,7 @@
         <div id="status" class="status">Ready.</div>
       </div>
     </div>
+    <script src="config.js"></script>
     <script src="session.js"></script>
     <script src="popup.js"></script>
   </body>

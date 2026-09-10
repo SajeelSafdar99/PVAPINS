@@ -19,11 +19,18 @@ export function UserDashboard({ email }: { email: string }) {
         }
         const data = await response.json();
         setReady(Boolean(data.hasSession));
-        setSessionNote(
-          data.hasSession
-            ? `A session was assigned to you on ${new Date(data.updatedAt).toLocaleString()}.`
-            : "No session has been assigned yet. Ask the admin to attach a JSON to your account."
-        );
+        const assigned = data.hasSession
+          ? `A session was assigned to you on ${new Date(data.updatedAt).toLocaleString()}.`
+          : "No session has been assigned yet. Ask the admin to attach a JSON to your account.";
+        const expiry =
+          data.hasSession && data.expiresAt
+            ? new Date(data.expiresAt).getTime() <= Date.now()
+              ? " This copy is expired. Wait for the admin to refresh it, or ask them to recapture Grammarly."
+              : ` Grammarly cookies expire ${new Date(data.expiresAt).toLocaleString()}. Keep Apply signed in so it can pull a refresh automatically.`
+            : data.hasSession
+              ? " Keep Apply signed in so it can pull a refresh when the admin updates the session."
+              : "";
+        setSessionNote(`${assigned}${expiry}`);
       })
       .catch(() => setSessionNote("Could not check session status."));
   }, []);
@@ -49,7 +56,7 @@ export function UserDashboard({ email }: { email: string }) {
       <div className="max-w-md">
         <ExtensionDownload
           title="Apply extension"
-          description="Install this, sign in with the same email and password, then fetch the Grammarly session assigned to you."
+          description="Install this, sign in with the same email and password, apply once, then leave it signed in. It will refresh Grammarly cookies when the admin pushes a new session."
           href="/downloads/pvapins-apply.zip"
           filename="pvapins-apply.zip"
         />

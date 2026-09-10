@@ -1,6 +1,7 @@
 import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 import { COOKIE_NAME, verifyToken } from "@/lib/jwt";
+import { allowDemoSessions } from "@/lib/demo";
 import { AdminDashboard } from "./ui";
 
 export default async function AdminPage() {
@@ -9,5 +10,5 @@ export default async function AdminPage() {
   if (!user || user.role !== "SUPER_ADMIN") {
     redirect("/login");
   }
-  return <AdminDashboard adminEmail={user.email} />;
+  return <AdminDashboard adminEmail={user.email} localDemo={allowDemoSessions()} />;
 }

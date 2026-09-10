@@ -1,6 +1,7 @@
 import { prisma } from "@/lib/db";
 import { ensureSuperAdmin, userFromRequest } from "@/lib/auth";
 import { json, options } from "@/lib/http";
+import { sessionExpiresAt } from "@/lib/session";
 
 export function OPTIONS(request: Request) {
   return options(request);
@@ -13,11 +14,12 @@ export async function GET(request: Request) {
 
   const session = await prisma.session.findUnique({
     where: { userId: user.id },
-    select: { updatedAt: true },
+    select: { updatedAt: true, payload: true },
   });
 
   return json(request, {
     hasSession: Boolean(session),
     updatedAt: session?.updatedAt ?? null,
+    expiresAt: sessionExpiresAt(session?.payload),
   });
 }

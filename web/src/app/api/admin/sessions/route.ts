@@ -1,7 +1,7 @@
 import { prisma } from "@/lib/db";
 import { ensureSuperAdmin, userFromRequest } from "@/lib/auth";
 import { json, options } from "@/lib/http";
-import { parseSessionPayload } from "@/lib/session";
+import { parseSessionPayload, sessionExpiresAt, sessionFingerprint } from "@/lib/session";
 
 export function OPTIONS(request: Request) {
   return options(request);
@@ -23,10 +23,29 @@ export async function POST(request: Request) {
 
   const users = await prisma.user.findMany({
     where: { role: "USER" },
-    select: { id: true },
+    select: { id: true, session: { select: { payload: true, updatedAt: true } } },
   });
   if (users.length === 0) {
     return json(request, { error: "There are no users to assign this file to." }, 400);
+  }
+
+  const expiresAt = sessionExpiresAt(session.payload);
+  const fingerprint = sessionFingerprint(session.payload);
+  const alreadyAssigned = users.filter((user) => user.session);
+  const sameCookies =
+    alreadyAssigned.length === users.length &&
+    alreadyAssigned.every((user) => sessionFingerprint(user.session?.payload) === fingerprint);
+
+  if (sameCookies) {
+    return json(request, {
+      ok: true,
+      unchanged: true,
+      assigned: users.length,
+      cookieCount: session.cookieCount,
+      hasGrauth: session.hasGrauth,
+      expiresAt,
+      updatedAt: alreadyAssigned[0]?.session?.updatedAt ?? null,
+    });
   }
 
   await prisma.$transaction(
@@ -41,8 +60,10 @@ export async function POST(request: Request) {
 
   return json(request, {
     ok: true,
+    unchanged: false,
     assigned: users.length,
     cookieCount: session.cookieCount,
     hasGrauth: session.hasGrauth,
+    expiresAt,
   });
 }

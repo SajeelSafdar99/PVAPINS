@@ -13,7 +13,19 @@ type UserRow = {
   createdAt: string;
   hasSession: boolean;
   sessionUpdatedAt: string | null;
+  sessionExpiresAt: string | null;
 };
+
+function sessionStatus(user: UserRow) {
+  if (!user.hasSession) return { text: "None", expired: false };
+  const assigned = `Assigned ${new Date(user.sessionUpdatedAt || "").toLocaleString()}`;
+  if (!user.sessionExpiresAt) return { text: assigned, expired: false };
+  const expires = new Date(user.sessionExpiresAt);
+  if (expires.getTime() <= Date.now()) {
+    return { text: `${assigned} · Expired — recapture Grammarly`, expired: true };
+  }
+  return { text: `${assigned} · Expires ${expires.toLocaleString()}`, expired: false };
+}
 
 const field =
   "mt-1 w-full rounded-lg border border-[#2a3344] bg-[#10141c] px-3 py-2 text-[#e8eef8] outline-none focus:border-[#3dd6c6]";
@@ -21,12 +33,18 @@ const field =
 async function readSessionFile(file: File) {
   const payload = JSON.parse(await file.text());
   if (!payload || !Array.isArray(payload.cookies)) {
-    throw new Error("That file is not a Grammarly session JSON.");
+    throw new Error("That file is not a session JSON.");
   }
   return payload;
 }
 
-export function AdminDashboard({ adminEmail }: { adminEmail: string }) {
+export function AdminDashboard({
+  adminEmail,
+  localDemo,
+}: {
+  adminEmail: string;
+  localDemo: boolean;
+}) {
   const [users, setUsers] = useState<UserRow[]>([]);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -157,7 +175,7 @@ export function AdminDashboard({ adminEmail }: { adminEmail: string }) {
       email={adminEmail}
       current="/admin"
       title="Users and sessions"
-      subtitle="Add accounts here. Assign one Grammarly JSON to every user when you have the file."
+      subtitle="Add accounts here. Keep Capture signed in on a Chrome profile that stays logged into Grammarly — it will push fresh cookies so users do not have to apply again."
     >
       <form onSubmit={addUser} className="mb-8 space-y-4 rounded-2xl border border-[#2a3344] bg-[#181e29] p-6">
         <div>
@@ -198,7 +216,11 @@ export function AdminDashboard({ adminEmail }: { adminEmail: string }) {
       <form onSubmit={assignJson} className="mb-8 space-y-4 rounded-2xl border border-[#2a3344] bg-[#181e29] p-6">
         <div>
           <h2 className="text-lg font-semibold">Assign JSON</h2>
-          <p className="text-sm text-[#93a0b5]">Upload one session file and apply it to every user.</p>
+          <p className="text-sm text-[#93a0b5]">
+            {localDemo
+              ? "Local demo: Grammarly or PVAPins session JSON. Production builds hide PVAPins. Capture can also push a live session without this upload."
+              : "Upload one Grammarly file, or leave Capture on “Keep session fresh” so it assigns new cookies when Grammarly refreshes them on your machine."}
+          </p>
         </div>
         <label className="flex cursor-pointer flex-col items-center justify-center rounded-xl border-2 border-dashed border-[#3dd6c6] bg-[#10141c] px-4 py-8 text-center hover:bg-[#0e1622]">
           <span className="font-semibold text-[#3dd6c6]">{jsonFile ? "Change file" : "Click to choose a .json file"}</span>
@@ -244,10 +266,8 @@ export function AdminDashboard({ adminEmail }: { adminEmail: string }) {
                 people.map((user) => (
                   <tr key={user.id} className="border-t border-[#2a3344]">
                     <td className="px-4 py-3">{user.email}</td>
-                    <td className="px-4 py-3 text-[#93a0b5]">
-                      {user.hasSession
-                        ? `Assigned ${new Date(user.sessionUpdatedAt || "").toLocaleString()}`
-                        : "None"}
+                    <td className={`px-4 py-3 ${sessionStatus(user).expired ? "text-[#ff7b7b]" : "text-[#93a0b5]"}`}>
+                      {sessionStatus(user).text}
                     </td>
                     <td className="px-4 py-3 text-right">
                       <div className="flex justify-end gap-3">
@@ -319,7 +339,7 @@ export function AdminDashboard({ adminEmail }: { adminEmail: string }) {
       <div className="grid gap-4 md:grid-cols-2">
         <ExtensionDownload
           title="Capture extension"
-          description="Admin only. Export a Grammarly session JSON from a logged-in Chrome profile, then assign it above."
+          description="Admin only. Sign in here, stay logged into app.grammarly.com, and turn on Keep session fresh so assigned cookies update by themselves."
           href="/downloads/pvapins-capture.zip"
           filename="pvapins-capture.zip"
         />

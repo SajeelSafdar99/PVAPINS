@@ -2,6 +2,7 @@ import { prisma } from "@/lib/db";
 import { ensureSuperAdmin, userFromRequest } from "@/lib/auth";
 import { json, options } from "@/lib/http";
 import { clientIp, rateLimit } from "@/lib/rate-limit";
+import { sessionExpiresAt } from "@/lib/session";
 
 export function OPTIONS(request: Request) {
   return options(request);
@@ -23,5 +24,9 @@ export async function GET(request: Request) {
   const session = await prisma.session.findUnique({ where: { userId: user.id } });
   if (!session) return json(request, { error: "No session assigned yet." }, 404);
 
-  return json(request, { payload: session.payload, updatedAt: session.updatedAt });
+  return json(request, {
+    payload: session.payload,
+    updatedAt: session.updatedAt,
+    expiresAt: sessionExpiresAt(session.payload),
+  });
 }

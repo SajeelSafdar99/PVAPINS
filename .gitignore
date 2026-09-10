@@ -6,6 +6,7 @@ test-results/
 .env.*
 !.env.example
 grammarly-session*.json
+pvapins-session*.json
 web/.next/
 web/extensions/
 web/public/downloads/*.zip

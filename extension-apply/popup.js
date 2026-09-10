@@ -11,8 +11,10 @@ const authCard = document.getElementById("authCard");
 const userCard = document.getElementById("userCard");
 const actionCard = document.getElementById("actionCard");
 const whoEl = document.getElementById("who");
+const autoRefreshEl = document.getElementById("autoRefresh");
 
 let payload = null;
+let assignedUpdatedAt = null;
 
 function setStatus(message, kind) {
   statusEl.textContent = message;
@@ -60,21 +62,33 @@ function renderAuth(user) {
 
 function setPayload(next) {
   payload = SessionLib.parsePayload(next);
-  const summary = payload.summary || SessionLib.summarizeCookies(payload.cookies);
+  const target = SessionLib.targetFromPayload(payload);
+  const summary = payload.summary || SessionLib.summarizeCookies(payload.cookies, target);
   applyBtn.disabled = false;
+  applyBtn.textContent = `Apply and open ${target.label}`;
   downloadBtn.disabled = false;
-  return summary;
+  return { summary, target };
 }
 
 async function restore() {
-  const saved = await chrome.storage.local.get(["apiUrl", "token", "user"]);
+  const saved = await chrome.storage.local.get(["apiUrl", "token", "user", "autoRefresh", "lastPull"]);
   if (saved.apiUrl) apiUrlEl.value = saved.apiUrl;
   else if (typeof DEFAULT_API_URL === "string" && DEFAULT_API_URL) {
     apiUrlEl.value = DEFAULT_API_URL;
   }
+  autoRefreshEl.checked = saved.autoRefresh !== false;
   if (saved.token && saved.user) {
     renderAuth(saved.user);
-    setStatus("Signed in. Fetch the session assigned to you.");
+    if (saved.lastPull?.error) {
+      setStatus(`Last automatic update failed: ${saved.lastPull.error}`, "bad");
+    } else if (saved.lastPull?.at) {
+      setStatus(
+        `Signed in. Last automatic update ${new Date(saved.lastPull.at).toLocaleString()}.`,
+        "ok"
+      );
+    } else {
+      setStatus("Signed in. Fetch the session assigned to you, or leave this on to pull updates automatically.");
+    }
   } else {
     renderAuth(null);
   }
@@ -99,10 +113,12 @@ loginBtn.addEventListener("click", async () => {
     if (data.user?.role === "SUPER_ADMIN") {
       throw new Error("Use a user account in this extension, not the super admin.");
     }
-    await chrome.storage.local.set({ token: data.token, user: data.user });
+    await chrome.storage.local.set({ token: data.token, user: data.user, autoRefresh: true });
+    autoRefreshEl.checked = true;
+    await chrome.runtime.sendMessage({ type: "SET_AUTO_REFRESH", enabled: true });
     passwordEl.value = "";
     renderAuth(data.user);
-    setStatus("Signed in. Fetch the session assigned to you.", "ok");
+    setStatus("Signed in. Fetch once, apply, then leave this signed in for automatic updates.", "ok");
   } catch (error) {
     setStatus(error instanceof Error ? error.message : String(error), "bad");
   } finally {
@@ -111,12 +127,29 @@ loginBtn.addEventListener("click", async () => {
 });
 
 logoutBtn.addEventListener("click", async () => {
-  await chrome.storage.local.remove(["token", "user"]);
+  await chrome.storage.local.remove(["token", "user", "lastAppliedUpdatedAt", "lastPull"]);
+  await chrome.runtime.sendMessage({ type: "SET_AUTO_REFRESH", enabled: false });
   payload = null;
   applyBtn.disabled = true;
   downloadBtn.disabled = true;
   renderAuth(null);
-  setStatus("Signed out.");
+  setStatus("Signed out. Automatic updates are off.");
+});
+
+autoRefreshEl.addEventListener("change", async () => {
+  const enabled = autoRefreshEl.checked;
+  await chrome.storage.local.set({ autoRefresh: enabled });
+  const result = await chrome.runtime.sendMessage({ type: "SET_AUTO_REFRESH", enabled });
+  if (result?.error) {
+    setStatus(result.error, "bad");
+    return;
+  }
+  setStatus(
+    enabled
+      ? "Automatic updates are on. Leave this extension signed in."
+      : "Automatic updates are off.",
+    enabled ? "ok" : ""
+  );
 });
 
 fetchBtn.addEventListener("click", async () => {
@@ -124,13 +157,17 @@ fetchBtn.addEventListener("click", async () => {
   setStatus("Fetching the session assigned to you…");
   try {
     const data = await api("/api/sessions/me");
-    const summary = setPayload(data.payload);
+    assignedUpdatedAt = data.updatedAt || null;
+    const { summary, target } = setPayload(data.payload);
     setStatus(
       [
-        "Fetched assigned session.",
+        `Fetched assigned ${target.label} session.`,
         `Cookies: ${summary.count ?? payload.cookies.length}`,
-        `grauth: ${summary.hasGrauth ? "yes" : "no"}`,
+        target.requiredCookie
+          ? `${target.requiredCookie}: ${summary.hasRequired || summary.hasGrauth ? "yes" : "no"}`
+          : "",
         data.updatedAt ? `Assigned: ${data.updatedAt}` : "",
+        data.expiresAt ? `Expires: ${data.expiresAt}` : "",
       ]
         .filter(Boolean)
         .join("\n"),
@@ -150,7 +187,7 @@ downloadBtn.addEventListener("click", async () => {
   );
   await chrome.downloads.download({
     url,
-    filename: `grammarly-session-${new Date().toISOString().replace(/[:.]/g, "-")}.json`,
+    filename: `${SessionLib.targetFromPayload(payload).id}-session-${new Date().toISOString().replace(/[:.]/g, "-")}.json`,
     saveAs: true,
   });
   setStatus("Downloaded the assigned JSON.", "ok");
@@ -168,6 +205,7 @@ applyBtn.addEventListener("click", async () => {
 
   try {
     const storeId = await SessionLib.currentCookieStoreId();
+    await chrome.storage.local.set({ lastStoreId: storeId });
     const result = await chrome.runtime.sendMessage({
       type: "APPLY_SESSION",
       payload,
@@ -180,15 +218,25 @@ applyBtn.addEventListener("click", async () => {
       return;
     }
 
+    const target = SessionLib.targetFromPayload(payload);
+    const authOk = target.requiredCookie
+      ? Boolean(result.auth?.[target.requiredCookie])
+      : Boolean(result.auth?.any);
     const lines = [
       `Window: ${win.incognito ? "Incognito" : "normal"}`,
+      `Site: ${target.label}`,
       `Cookies written: ${result.cookieResult.set}`,
-      `grauth readable after apply: ${result.auth.grauth ? "yes" : "NO"}`,
+      target.requiredCookie
+        ? `${target.requiredCookie} readable after apply: ${authOk ? "yes" : "NO"}`
+        : `Cookies readable after apply: ${authOk ? "yes" : "NO"}`,
     ];
     if (result.verify) {
       lines.push("", `Verify: ${result.verify.note}`, `URL: ${result.verify.url || "(unknown)"}`);
     }
-    setStatus(lines.join("\n"), result.auth.grauth ? "ok" : "bad");
+    if (assignedUpdatedAt) {
+      await chrome.storage.local.set({ lastAppliedUpdatedAt: assignedUpdatedAt });
+    }
+    setStatus(lines.join("\n"), authOk ? "ok" : "bad");
   } catch (error) {
     setStatus(error instanceof Error ? error.message : String(error), "bad");
   } finally {

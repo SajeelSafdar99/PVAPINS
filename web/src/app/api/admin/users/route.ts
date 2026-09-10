@@ -7,6 +7,7 @@ import {
   validPassword,
 } from "@/lib/auth";
 import { json, options } from "@/lib/http";
+import { sessionExpiresAt } from "@/lib/session";
 
 export function OPTIONS(request: Request) {
   return options(request);
@@ -26,7 +27,7 @@ export async function GET(request: Request) {
 
   const users = await prisma.user.findMany({
     orderBy: { createdAt: "desc" },
-    include: { session: { select: { updatedAt: true } } },
+    include: { session: { select: { updatedAt: true, payload: true } } },
   });
 
   return json(
@@ -38,6 +39,7 @@ export async function GET(request: Request) {
       createdAt: user.createdAt,
       hasSession: Boolean(user.session),
       sessionUpdatedAt: user.session?.updatedAt ?? null,
+      sessionExpiresAt: sessionExpiresAt(user.session?.payload),
     }))
   );
 }

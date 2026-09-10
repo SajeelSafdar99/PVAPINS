@@ -1,14 +1,75 @@
 /**
- * Shared Grammarly web-session helpers.
- * Used by both capture and apply extensions.
+ * Shared web-session helpers for capture and apply extensions.
  */
 const SessionLib = {
   SESSION_VERSION: 1,
 
-  AUTH_COOKIE_HINTS: ["grauth", "csrf-token", "gnar_containerId"],
+  TARGETS: {
+    grammarly: {
+      id: "grammarly",
+      source: "grammarly-web",
+      label: "Grammarly",
+      domainRe: /(^|\.)grammarly\.com$/i,
+      tabUrl: "*://*.grammarly.com/*",
+      appUrl: "https://app.grammarly.com/",
+      cookieUrl: "https://app.grammarly.com/",
+      defaultHost: "app.grammarly.com",
+      rootHost: "grammarly.com",
+      authCookies: ["grauth", "csrf-token", "gac", "tdi"],
+      requiredCookie: "grauth",
+      origins: ["*://*.grammarly.com/*", "*://grammarly.com/*"],
+    },
+    pvapins: {
+      id: "pvapins",
+      source: "pvapins-web",
+      label: "PVAPins",
+      demo: true,
+      domainRe: /(^|\.)pvapins\.com$/i,
+      tabUrl: "*://*.pvapins.com/*",
+      appUrl: "https://app.pvapins.com/user",
+      cookieUrl: "https://app.pvapins.com/",
+      defaultHost: "app.pvapins.com",
+      rootHost: "pvapins.com",
+      authCookies: ["u_access_token", "u_refresh_token"],
+      requiredCookie: "u_access_token",
+      origins: ["*://*.pvapins.com/*", "*://pvapins.com/*"],
+    },
+  },
 
-  isGrammarlyDomain(domain) {
-    return /(^|\.)grammarly\.com$/i.test(String(domain || "").replace(/^\./, ""));
+  demoEnabled() {
+    return typeof LOCAL_DEMO !== "undefined" && LOCAL_DEMO === true;
+  },
+
+  getTarget(id) {
+    return this.TARGETS[id] || this.TARGETS.grammarly;
+  },
+
+  availableTargets() {
+    return Object.values(this.TARGETS).filter((target) => !target.demo || this.demoEnabled());
+  },
+
+  isDomain(domain, target) {
+    return target.domainRe.test(String(domain || "").replace(/^\./, ""));
+  },
+
+  targetFromPayload(payload) {
+    if (payload?.source === "pvapins-web" && this.demoEnabled()) return this.TARGETS.pvapins;
+    const cookies = Array.isArray(payload?.cookies) ? payload.cookies : [];
+    if (this.demoEnabled() && cookies.some((cookie) => this.isDomain(cookie.domain, this.TARGETS.pvapins))) {
+      if (!cookies.some((cookie) => cookie.name === "grauth")) return this.TARGETS.pvapins;
+    }
+    return this.TARGETS.grammarly;
+  },
+
+  async ensureTargetAccess(target, options = {}) {
+    if (!target.origins?.length || typeof chrome.permissions?.contains !== "function") return;
+    const have = await chrome.permissions.contains({ origins: target.origins });
+    if (have) return;
+    if (options.interactive === false || typeof chrome.permissions.request !== "function") {
+      throw new Error(`Open the popup once so ${target.label} cookie access can be granted.`);
+    }
+    const granted = await chrome.permissions.request({ origins: target.origins });
+    if (!granted) throw new Error(`Permission to read ${target.label} cookies was denied.`);
   },
 
   async currentCookieStoreId() {
@@ -29,23 +90,24 @@ const SessionLib = {
     return undefined;
   },
 
-  async collectCookies() {
+  async collectCookies(target) {
     const all = await chrome.cookies.getAll({});
-    return all.filter((cookie) => this.isGrammarlyDomain(cookie.domain));
+    return all.filter((cookie) => this.isDomain(cookie.domain, target));
   },
 
-  summarizeCookies(cookies) {
+  summarizeCookies(cookies, target) {
     const names = new Set(cookies.map((cookie) => cookie.name));
     return {
       count: cookies.length,
       hasGrauth: names.has("grauth"),
       hasCsrf: names.has("csrf-token"),
+      hasRequired: target.requiredCookie ? names.has(target.requiredCookie) : cookies.length > 0,
       names: [...names].sort(),
     };
   },
 
-  async collectPageStorage() {
-    const tabs = await chrome.tabs.query({ url: "*://*.grammarly.com/*" });
+  async collectPageStorage(target) {
+    const tabs = await chrome.tabs.query({ url: target.tabUrl });
     const byOrigin = {};
 
     for (const tab of tabs) {
@@ -83,30 +145,35 @@ const SessionLib = {
     return byOrigin;
   },
 
-  async buildPayload() {
-    const cookies = await this.collectCookies();
-    const storage = await this.collectPageStorage();
+  async buildPayload(targetId, options = {}) {
+    const target = this.getTarget(targetId);
+    if (target.demo && !this.demoEnabled()) {
+      throw new Error("That export is only available in the local demo.");
+    }
+    await this.ensureTargetAccess(target, options);
+    const cookies = await this.collectCookies(target);
+    const storage = await this.collectPageStorage(target);
     return {
       version: this.SESSION_VERSION,
       exportedAt: new Date().toISOString(),
-      source: "grammarly-web",
+      source: target.source,
       cookies,
       storage,
-      summary: this.summarizeCookies(cookies),
+      summary: this.summarizeCookies(cookies, target),
     };
   },
 
-  cookieUrl(cookie) {
+  cookieUrl(cookie, target) {
     const host = String(cookie.domain || "").replace(/^\./, "");
     const path = cookie.path || "/";
     const scheme = cookie.secure || cookie.sameSite === "no_restriction" ? "https" : "http";
-    const urlHost = host === "grammarly.com" ? "app.grammarly.com" : host;
+    const urlHost = host === target.rootHost ? target.defaultHost : host;
     return `${scheme}://${urlHost}${path}`;
   },
 
-  toSetDetails(cookie, storeId) {
+  toSetDetails(cookie, storeId, target) {
     const details = {
-      url: this.cookieUrl(cookie),
+      url: this.cookieUrl(cookie, target),
       name: cookie.name,
       value: cookie.value,
       path: cookie.path || "/",
@@ -141,16 +208,16 @@ const SessionLib = {
     return details;
   },
 
-  async applyCookies(cookies, storeId) {
+  async applyCookies(cookies, storeId, target) {
     const results = { set: 0, failed: [] };
     for (const cookie of cookies) {
-      if (!this.isGrammarlyDomain(cookie.domain)) continue;
+      if (!this.isDomain(cookie.domain, target)) continue;
       if (!cookie.session && cookie.expirationDate && cookie.expirationDate * 1000 < Date.now()) {
         results.failed.push({ name: cookie.name, error: "expired" });
         continue;
       }
       try {
-        const written = await chrome.cookies.set(this.toSetDetails(cookie, storeId));
+        const written = await chrome.cookies.set(this.toSetDetails(cookie, storeId, target));
         if (written) results.set += 1;
         else results.failed.push({ name: cookie.name, domain: cookie.domain, error: "set returned empty" });
       } catch (error) {
@@ -164,14 +231,17 @@ const SessionLib = {
     return results;
   },
 
-  async readAuthCookies(storeId) {
-    const query = { url: "https://app.grammarly.com/" };
+  async readAuthCookies(storeId, target) {
+    const query = { url: target.cookieUrl };
     if (storeId) query.storeId = storeId;
-    const names = ["grauth", "csrf-token", "gac", "tdi"];
     const found = {};
-    for (const name of names) {
+    for (const name of target.authCookies) {
       const cookie = await chrome.cookies.get({ ...query, name });
       found[name] = Boolean(cookie);
+    }
+    if (!target.requiredCookie) {
+      const all = await chrome.cookies.getAll({ ...query });
+      found.any = all.length > 0;
     }
     return found;
   },
@@ -240,9 +310,9 @@ const SessionLib = {
     });
   },
 
-  async verifyAppLogin(windowId) {
+  async verifyAppLogin(windowId, target) {
     const tab = await chrome.tabs.create({
-      url: "https://app.grammarly.com/",
+      url: target.appUrl,
       active: true,
       windowId,
     });
@@ -259,30 +329,28 @@ const SessionLib = {
       if (current.status !== "complete") continue;
 
       const url = current.url || "";
-      if (/signin|signup|\/login/i.test(url)) {
+      if (/signin|signup|\/login/i.test(url) && !/\/user$/i.test(url)) {
         return { ok: false, url, note: "Redirected to a sign-in page." };
       }
 
-      if (/app\.grammarly\.com/i.test(url)) {
-        try {
-          const [{ result }] = await chrome.scripting.executeScript({
-            target: { tabId: tab.id },
-            func: () => ({
-              href: location.href,
-              title: document.title,
-              text: (document.body?.innerText || "").slice(0, 2500),
-            }),
-          });
-          const signedOut =
-            /sign in|log in/i.test(result.text) &&
-            /\/signin|\/login/i.test(result.href);
-          if (signedOut) {
-            return { ok: false, url: result.href, note: "App loaded but still looks signed out." };
-          }
-          return { ok: true, url: result.href, note: "App opened without a sign-in redirect." };
-        } catch {
-          return { ok: null, url, note: "App opened. Confirm in the tab whether you are logged in." };
+      try {
+        const [{ result }] = await chrome.scripting.executeScript({
+          target: { tabId: tab.id },
+          func: () => ({
+            href: location.href,
+            title: document.title,
+            text: (document.body?.innerText || "").slice(0, 2500),
+          }),
+        });
+        const signedOut =
+          /sign in|log in/i.test(result.text) &&
+          /\/signin|\/login/i.test(result.href);
+        if (signedOut) {
+          return { ok: false, url: result.href, note: "App loaded but still looks signed out." };
         }
+        return { ok: true, url: result.href, note: `${target.label} opened without a sign-in redirect.` };
+      } catch {
+        return { ok: null, url, note: "App opened. Confirm in the tab whether you are logged in." };
       }
     }
 
@@ -290,7 +358,7 @@ const SessionLib = {
     return {
       ok: null,
       url: current.url || "",
-      note: "Timed out waiting for Grammarly. Check the opened tab.",
+      note: `Timed out waiting for ${target.label}. Check the opened tab.`,
     };
   },
 
@@ -300,6 +368,16 @@ const SessionLib = {
       throw new Error("Invalid session file: missing cookies array.");
     }
     return data;
+  },
+
+  cookieExpiresAt(payload, cookieName) {
+    const cookies = Array.isArray(payload?.cookies) ? payload.cookies : [];
+    const cookie =
+      cookies.find((item) => item.name === cookieName) ||
+      cookies.find((item) => item.name === "grauth") ||
+      cookies.find((item) => item.name === "u_access_token");
+    if (typeof cookie?.expirationDate !== "number") return null;
+    return new Date(cookie.expirationDate * 1000).toISOString();
   },
 };
 

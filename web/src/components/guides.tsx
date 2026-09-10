@@ -13,12 +13,13 @@ export const adminGuideSections: GuideSection[] = [
         detail: "Open app.grammarly.com and confirm you are signed in. You can then switch to any other tab.",
       },
       {
-        title: "Click the Capture extension and choose Download session JSON.",
-        detail: "The popup must say grauth: found. If it says missing, sign in to Grammarly again and export.",
+        title: "Click the Capture extension, sign in as admin, and turn on Keep session fresh.",
+        detail:
+          "Stay logged in at app.grammarly.com in that same Chrome profile. Capture rereads those cookies and assigns them to every user. You can still download a JSON if you want a backup.",
       },
       {
-        title: "Keep that JSON file. Users never upload it themselves.",
-        detail: "Only you, as admin, can attach it to an account on the Users page.",
+        title: "If grauth is missing or the admin page says Expired, sign in to Grammarly again.",
+        detail: "We cannot mint a new Grammarly token. The live admin browser has to still be logged in.",
       },
     ],
   },
@@ -29,8 +30,8 @@ export const adminGuideSections: GuideSection[] = [
         title: "Open Users and add each person with an email and password.",
       },
       {
-        title: "In Assign JSON, choose the file you exported and assign it.",
-        detail: "That one file is applied to every user. Use it again when you have a new export.",
+        title: "Assign JSON is optional if Capture is already pushing a live session.",
+        detail: "Use the upload if you exported a file by hand. Capture’s keep-fresh toggle does the same assign automatically.",
       },
       {
         title: "Send the user this website URL plus their email and password.",
@@ -63,9 +64,9 @@ export const userGuideSections: GuideSection[] = [
         detail: "You cannot upload a JSON. The admin already stored one for your account.",
       },
       {
-        title: "Click Fetch assigned session, then Apply and open Grammarly.",
+        title: "Click Fetch assigned session, then Apply and open Grammarly once.",
         detail:
-          "For Incognito: chrome://extensions → Apply → Details → Allow in Incognito, then open the popup from an Incognito window.",
+          "Leave Apply signed in after that. It pulls a new copy when the admin refreshes the session. For Incognito: chrome://extensions → Apply → Details → Allow in Incognito, then open the popup from an Incognito window.",
       },
     ],
   },
