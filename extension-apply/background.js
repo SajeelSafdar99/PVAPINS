@@ -18,6 +18,8 @@ async function api(path) {
   const response = await fetch(`${base}${path}`, {
     headers: { Authorization: `Bearer ${token}` },
   });
+  const next = response.headers.get("X-Pvapins-Token");
+  if (next) await chrome.storage.local.set({ token: next });
   const data = await response.json().catch(() => ({}));
   if (!response.ok) {
     throw new Error(data.error || `Request failed (${response.status})`);

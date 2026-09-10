@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { TOKEN_HEADER, attachRefreshedToken } from "@/lib/jwt";
 
 function allowedOrigin(request: Request) {
   const origin = request.headers.get("origin");
@@ -14,8 +15,9 @@ function allowedOrigin(request: Request) {
 export function corsHeaders(request: Request) {
   const origin = allowedOrigin(request);
   const headers: Record<string, string> = {
-    "Access-Control-Allow-Headers": "Content-Type, Authorization",
+    "Access-Control-Allow-Headers": `Content-Type, Authorization, ${TOKEN_HEADER}`,
     "Access-Control-Allow-Methods": "GET, POST, PATCH, DELETE, OPTIONS",
+    "Access-Control-Expose-Headers": TOKEN_HEADER,
     Vary: "Origin",
     "X-Content-Type-Options": "nosniff",
   };
@@ -26,8 +28,10 @@ export function corsHeaders(request: Request) {
   return headers;
 }
 
-export function json(request: Request, body: unknown, status = 200) {
-  return NextResponse.json(body, { status, headers: corsHeaders(request) });
+export async function json(request: Request, body: unknown, status = 200) {
+  const response = NextResponse.json(body, { status, headers: corsHeaders(request) });
+  if (status < 400) await attachRefreshedToken(request, response);
+  return response;
 }
 
 export function options(request: Request) {

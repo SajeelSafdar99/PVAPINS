@@ -18,11 +18,14 @@ export async function api(path: string, init: RequestInit = {}) {
       headers.set("Authorization", `Bearer ${token}`);
     }
   }
-  return fetch(apiUrl(path), {
+  const response = await fetch(apiUrl(path), {
     ...init,
     headers,
     credentials: "include",
   });
+  const next = response.headers.get("X-Pvapins-Token");
+  if (next) rememberToken(next);
+  return response;
 }
 
 export function rememberToken(token?: string) {

@@ -1,9 +1,9 @@
 import bcrypt from "bcryptjs";
 import { cookies } from "next/headers";
 import { prisma } from "./db";
-import { COOKIE_NAME, signToken, verifyToken, type TokenUser } from "./jwt";
+import { COOKIE_NAME, cookieOptions, signToken, verifyToken, type TokenUser } from "./jwt";
 
-export { COOKIE_NAME, signToken, verifyToken };
+export { COOKIE_NAME, cookieOptions, signToken, verifyToken };
 export type { TokenUser };
 
 export async function hashPassword(password: string) {
@@ -53,16 +53,6 @@ export async function ensureSuperAdmin() {
   return prisma.user.create({
     data: { email, passwordHash: await hashPassword(password), role: "SUPER_ADMIN" },
   });
-}
-
-export function cookieOptions() {
-  return {
-    httpOnly: true,
-    sameSite: "lax" as const,
-    secure: process.env.NODE_ENV === "production",
-    path: "/",
-    maxAge: 60 * 60 * 24 * 7,
-  };
 }
 
 export function normalizeEmail(email: unknown) {

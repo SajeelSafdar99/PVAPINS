@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
-import { COOKIE_NAME, verifyToken } from "@/lib/jwt";
+import { COOKIE_NAME, attachRefreshedToken, verifyToken } from "@/lib/jwt";
 
 export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
@@ -22,7 +22,9 @@ export async function middleware(request: NextRequest) {
     }
   }
 
-  return NextResponse.next();
+  const response = NextResponse.next();
+  if (user) await attachRefreshedToken(request, response);
+  return response;
 }
 
 export const config = {
