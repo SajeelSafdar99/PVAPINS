@@ -36,22 +36,27 @@ export default function LoginPage() {
   }
 
   return (
-    <main className="relative flex min-h-screen items-center justify-center overflow-hidden bg-[#0b1018] px-6 py-16">
-      <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_top,_rgba(61,214,198,0.12),_transparent_45%)]" />
+    <main className="relative flex min-h-screen items-center justify-center overflow-hidden px-6 py-16">
+      <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_top,_rgba(61,214,198,0.14),_transparent_45%)]" />
       <div className="relative w-full max-w-md">
-        <p className="mb-3 text-xs font-semibold tracking-[0.28em] text-[#3dd6c6]">PVAPINS</p>
-        <h1 className="mb-2 text-3xl font-semibold tracking-tight">Sign in</h1>
-        <p className="mb-8 text-[#93a0b5]">
+        <div className="mb-6 flex items-center gap-3">
+          <span
+            aria-hidden
+            className="grid size-10 place-items-center rounded-xl bg-gradient-to-br from-accent to-accent-strong text-sm font-bold text-accent-ink shadow-[0_8px_24px_-10px_rgba(61,214,198,0.8)]"
+          >
+            PV
+          </span>
+          <p className="text-xs font-semibold tracking-[0.28em] text-accent">PVAPINS</p>
+        </div>
+        <h1 className="mb-2 text-3xl font-semibold tracking-tight text-text">Sign in</h1>
+        <p className="mb-8 text-muted">
           Admins assign a Grammarly session to each user. Users download Apply and fetch that file.
         </p>
-        <form
-          onSubmit={onSubmit}
-          className="space-y-4 rounded-2xl border border-[#2a3344] bg-[#181e29]/90 p-6 shadow-[0_20px_80px_rgba(0,0,0,0.35)]"
-        >
-          <label className="block text-sm text-[#93a0b5]">
+        <form onSubmit={onSubmit} className="card space-y-4">
+          <label className="label">
             Email
             <input
-              className="mt-1 w-full rounded-lg border border-[#2a3344] bg-[#10141c] px-3 py-2.5 text-[#e8eef8] outline-none focus:border-[#3dd6c6]"
+              className="field"
               type="email"
               autoComplete="email"
               value={email}
@@ -59,10 +64,10 @@ export default function LoginPage() {
               required
             />
           </label>
-          <label className="block text-sm text-[#93a0b5]">
+          <label className="label">
             Password
             <input
-              className="mt-1 w-full rounded-lg border border-[#2a3344] bg-[#10141c] px-3 py-2.5 text-[#e8eef8] outline-none focus:border-[#3dd6c6]"
+              className="field"
               type="password"
               autoComplete="current-password"
               value={password}
@@ -70,11 +75,8 @@ export default function LoginPage() {
               required
             />
           </label>
-          {error ? <p className="text-sm text-[#ff7b7b]">{error}</p> : null}
-          <button
-            className="w-full rounded-lg bg-[#3dd6c6] px-3 py-2.5 font-semibold text-[#06221f] disabled:opacity-60"
-            disabled={busy}
-          >
+          {error ? <p className="text-sm text-danger">{error}</p> : null}
+          <button className="btn-primary w-full" disabled={busy}>
             {busy ? "Signing in…" : "Sign in"}
           </button>
         </form>

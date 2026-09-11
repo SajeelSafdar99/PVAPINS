@@ -13,17 +13,17 @@ export function Guide({ title, sections }: { title: string; sections: GuideSecti
     <section className="space-y-8">
       <h2 className="sr-only">{title}</h2>
       {sections.map((section) => (
-        <div key={section.title} className="rounded-2xl border border-[#2a3344] bg-[#181e29] p-6">
-          <h3 className="mb-4 text-base font-semibold text-[#3dd6c6]">{section.title}</h3>
+        <div key={section.title} className="card">
+          <h3 className="mb-4 text-base font-semibold text-accent">{section.title}</h3>
           <ol className="space-y-3">
             {section.steps.map((step, index) => (
-              <li key={`${section.title}-${step.title}`} className="flex gap-3 text-sm leading-6 text-[#d5deec]">
-                <span className="mt-0.5 flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-[#10141c] text-xs font-semibold text-[#3dd6c6]">
+              <li key={`${section.title}-${step.title}`} className="flex gap-3 text-sm leading-6 text-text/90">
+                <span className="mt-0.5 flex size-6 shrink-0 items-center justify-center rounded-full border border-accent/30 bg-accent/10 text-xs font-semibold text-accent">
                   {index + 1}
                 </span>
                 <span>
-                  <strong className="font-semibold text-[#e8eef8]">{step.title}</strong>
-                  {step.detail ? <span className="block text-[#93a0b5]">{step.detail}</span> : null}
+                  <strong className="font-semibold text-text">{step.title}</strong>
+                  {step.detail ? <span className="block text-muted">{step.detail}</span> : null}
                 </span>
               </li>
             ))}

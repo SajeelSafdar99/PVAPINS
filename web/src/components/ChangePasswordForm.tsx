@@ -33,15 +33,15 @@ export function ChangePasswordForm() {
   }
 
   return (
-    <form onSubmit={onSubmit} className="space-y-4 rounded-2xl border border-[#2a3344] bg-[#181e29] p-6">
+    <form onSubmit={onSubmit} className="card space-y-4">
       <div>
-        <h2 className="text-lg font-semibold">Change password</h2>
-        <p className="text-sm text-[#93a0b5]">You are already signed in. Enter a new password (8+ characters).</p>
+        <h2 className="text-lg font-semibold text-text">Change password</h2>
+        <p className="mt-1 text-sm text-muted">You are already signed in. Enter a new password (8+ characters).</p>
       </div>
-      <label className="block max-w-md text-sm text-[#93a0b5]">
+      <label className="label block max-w-md">
         New password
         <input
-          className="mt-1 w-full rounded-lg border border-[#2a3344] bg-[#10141c] px-3 py-2 text-[#e8eef8] outline-none focus:border-[#3dd6c6]"
+          className="field"
           type="password"
           autoComplete="new-password"
           value={newPassword}
@@ -50,13 +50,10 @@ export function ChangePasswordForm() {
           minLength={8}
         />
       </label>
-      <button
-        className="rounded-lg bg-[#3dd6c6] px-4 py-2.5 font-semibold text-[#06221f] disabled:opacity-60"
-        disabled={busy}
-      >
+      <button className="btn-primary" disabled={busy}>
         {busy ? "Saving…" : "Update password"}
       </button>
-      {note ? <p className={`text-sm ${ok ? "text-[#5ee6a0]" : "text-[#ff7b7b]"}`}>{note}</p> : null}
+      {note ? <p className={`text-sm ${ok ? "text-success" : "text-danger"}`}>{note}</p> : null}
     </form>
   );
 }

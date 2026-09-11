@@ -1,9 +1,10 @@
 "use client";
 
-import { FormEvent, useEffect, useState } from "react";
+import { FormEvent, useEffect, useMemo, useState } from "react";
 import { AppShell } from "@/components/AppShell";
 import { ChangePasswordForm } from "@/components/ChangePasswordForm";
 import { ExtensionDownload } from "@/components/ExtensionDownload";
+import { AdminGuide } from "@/components/guides";
 import { api } from "@/lib/api";
 
 type UserRow = {
@@ -16,19 +17,58 @@ type UserRow = {
   sessionExpiresAt: string | null;
 };
 
-function sessionStatus(user: UserRow) {
-  if (!user.hasSession) return { text: "None", expired: false };
-  const assigned = `Assigned ${new Date(user.sessionUpdatedAt || "").toLocaleString()}`;
-  if (!user.sessionExpiresAt) return { text: assigned, expired: false };
+type SessionKind = "none" | "active" | "expired";
+
+function sessionStatus(user: UserRow): { label: string; detail: string; kind: SessionKind } {
+  if (!user.hasSession) return { label: "None", detail: "No session assigned", kind: "none" };
+  const assigned = user.sessionUpdatedAt
+    ? `Assigned ${new Date(user.sessionUpdatedAt).toLocaleString()}`
+    : "Assigned";
+  if (!user.sessionExpiresAt) return { label: "Active", detail: assigned, kind: "active" };
   const expires = new Date(user.sessionExpiresAt);
   if (expires.getTime() <= Date.now()) {
-    return { text: `${assigned} · Expired — recapture Grammarly`, expired: true };
+    return { label: "Expired", detail: `${assigned} · recapture Grammarly`, kind: "expired" };
   }
-  return { text: `${assigned} · Expires ${expires.toLocaleString()}`, expired: false };
+  return { label: "Active", detail: `${assigned} · expires ${expires.toLocaleString()}`, kind: "active" };
 }
 
-const field =
-  "mt-1 w-full rounded-lg border border-[#2a3344] bg-[#10141c] px-3 py-2 text-[#e8eef8] outline-none focus:border-[#3dd6c6]";
+const badgeClass: Record<SessionKind, string> = {
+  none: "badge-muted",
+  active: "badge-success",
+  expired: "badge-danger",
+};
+
+const field = "field";
+
+type TabKey = "home" | "users" | "guide" | "password";
+
+const TABS: { key: TabKey; label: string; title: string; subtitle: string }[] = [
+  {
+    key: "home",
+    label: "Home",
+    title: "Overview",
+    subtitle: "Your workspace at a glance — session health and the extensions to hand out.",
+  },
+  {
+    key: "users",
+    label: "Users",
+    title: "Users and sessions",
+    subtitle:
+      "Add accounts, assign a Grammarly session, and manage everyone. Keep Capture signed in on a Chrome profile that stays logged into Grammarly so cookies refresh by themselves.",
+  },
+  {
+    key: "guide",
+    label: "Admin guide",
+    title: "Admin guide",
+    subtitle: "Install Capture, export a Grammarly JSON, add users, and assign that file to everyone.",
+  },
+  {
+    key: "password",
+    label: "Password",
+    title: "Change password",
+    subtitle: "Update the password for your super-admin account.",
+  },
+];
 
 async function readSessionFile(file: File) {
   const payload = JSON.parse(await file.text());
@@ -38,6 +78,23 @@ async function readSessionFile(file: File) {
   return payload;
 }
 
+function StatCard({ label, value, tone }: { label: string; value: number; tone: SessionKind | "total" }) {
+  const toneClass =
+    tone === "active"
+      ? "text-success"
+      : tone === "expired"
+        ? "text-danger"
+        : tone === "none"
+          ? "text-muted"
+          : "text-accent";
+  return (
+    <div className="card p-5">
+      <p className="text-sm text-muted">{label}</p>
+      <p className={`mt-2 text-3xl font-semibold tracking-tight ${toneClass}`}>{value}</p>
+    </div>
+  );
+}
+
 export function AdminDashboard({
   adminEmail,
   localDemo,
@@ -45,6 +102,7 @@ export function AdminDashboard({
   adminEmail: string;
   localDemo: boolean;
 }) {
+  const [tab, setTab] = useState<TabKey>("home");
   const [users, setUsers] = useState<UserRow[]>([]);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -59,7 +117,20 @@ export function AdminDashboard({
   const [jsonBusy, setJsonBusy] = useState(false);
   const [editBusy, setEditBusy] = useState(false);
 
-  const people = users.filter((user) => user.role === "USER");
+  const people = useMemo(() => users.filter((user) => user.role === "USER"), [users]);
+
+  const stats = useMemo(() => {
+    let active = 0;
+    let expired = 0;
+    let none = 0;
+    for (const user of people) {
+      const kind = sessionStatus(user).kind;
+      if (kind === "active") active += 1;
+      else if (kind === "expired") expired += 1;
+      else none += 1;
+    }
+    return { total: people.length, active, expired, none };
+  }, [people]);
 
   async function loadUsers() {
     const response = await api("/api/admin/users");
@@ -169,191 +240,277 @@ export function AdminDashboard({
     await loadUsers();
   }
 
+  const meta = TABS.find((item) => item.key === tab) ?? TABS[0];
+
+  const tabBar = (
+    <>
+      {TABS.map((item) => {
+        const active = item.key === tab;
+        return (
+          <button
+            key={item.key}
+            type="button"
+            onClick={() => setTab(item.key)}
+            aria-current={active ? "page" : undefined}
+            className={`shrink-0 border-b-2 px-4 py-3 text-sm font-medium transition ${
+              active
+                ? "border-accent text-text"
+                : "border-transparent text-muted hover:text-text"
+            }`}
+          >
+            {item.label}
+            {item.key === "users" && stats.total > 0 ? (
+              <span className="ml-2 rounded-full bg-surface-2 px-1.5 py-0.5 text-xs text-muted">
+                {stats.total}
+              </span>
+            ) : null}
+          </button>
+        );
+      })}
+    </>
+  );
+
   return (
     <AppShell
       role="admin"
       email={adminEmail}
-      current="/admin"
-      title="Users and sessions"
-      subtitle="Add accounts here. Keep Capture signed in on a Chrome profile that stays logged into Grammarly — it will push fresh cookies so users do not have to apply again."
+      showNav={false}
+      tabBar={tabBar}
+      title={meta.title}
+      subtitle={meta.subtitle}
     >
-      <form onSubmit={addUser} className="mb-8 space-y-4 rounded-2xl border border-[#2a3344] bg-[#181e29] p-6">
-        <div>
-          <h2 className="text-lg font-semibold">Add a user</h2>
-          <p className="text-sm text-[#93a0b5]">Email and password only. Assign JSON in the next section.</p>
-        </div>
-        <div className="grid gap-3 sm:grid-cols-2">
-          <label className="text-sm text-[#93a0b5]">
-            Email
-            <input
-              className={field}
-              type="email"
-              placeholder="user@email.com"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              required
-            />
-          </label>
-          <label className="text-sm text-[#93a0b5]">
-            Password
-            <input
-              className={field}
-              type="password"
-              placeholder="At least 8 characters"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              required
-              minLength={8}
-            />
-          </label>
-        </div>
-        <button className="rounded-lg bg-[#3dd6c6] px-4 py-2.5 font-semibold text-[#06221f] disabled:opacity-60" disabled={busy}>
-          {busy ? "Saving…" : "Add user"}
-        </button>
-        {error ? <p className="text-sm text-[#ff7b7b]">{error}</p> : null}
-      </form>
+      {tab === "home" ? (
+        <div className="space-y-8">
+          {stats.expired > 0 ? (
+            <div className="badge-danger w-full justify-start rounded-xl px-4 py-3 text-sm">
+              {stats.expired} user{stats.expired === 1 ? "" : "s"} {stats.expired === 1 ? "has" : "have"} an expired
+              session — keep the Capture browser signed into Grammarly so it can refresh them.
+            </div>
+          ) : null}
 
-      <form onSubmit={assignJson} className="mb-8 space-y-4 rounded-2xl border border-[#2a3344] bg-[#181e29] p-6">
-        <div>
-          <h2 className="text-lg font-semibold">Assign JSON</h2>
-          <p className="text-sm text-[#93a0b5]">
-            {localDemo
-              ? "Local demo: Grammarly or PVAPins session JSON. Production builds hide PVAPins. Capture can also push a live session without this upload."
-              : "Upload one Grammarly file, or leave Capture on “Keep session fresh” so it assigns new cookies when Grammarly refreshes them on your machine."}
-          </p>
-        </div>
-        <label className="flex cursor-pointer flex-col items-center justify-center rounded-xl border-2 border-dashed border-[#3dd6c6] bg-[#10141c] px-4 py-8 text-center hover:bg-[#0e1622]">
-          <span className="font-semibold text-[#3dd6c6]">{jsonFile ? "Change file" : "Click to choose a .json file"}</span>
-          <span className="mt-2 text-sm text-[#e8eef8]">{jsonFile ? jsonFile.name : "No file selected yet"}</span>
-          <input
-            className="sr-only"
-            type="file"
-            accept="application/json,.json"
-            onChange={(e) => setJsonFile(e.target.files?.[0] || null)}
-          />
-        </label>
-        <button
-          className="rounded-lg bg-[#3dd6c6] px-4 py-2.5 font-semibold text-[#06221f] disabled:opacity-60"
-          disabled={jsonBusy || !jsonFile || people.length === 0}
-        >
-          {jsonBusy ? "Assigning…" : "Assign JSON"}
-        </button>
-        {error ? <p className="text-sm text-[#ff7b7b]">{error}</p> : null}
-        {jsonNote ? <p className="text-sm text-[#5ee6a0]">{jsonNote}</p> : null}
-      </form>
-
-      <section className="mb-8 overflow-hidden rounded-2xl border border-[#2a3344] bg-[#181e29]">
-        <div className="border-b border-[#2a3344] px-4 py-3">
-          <h2 className="font-semibold">Users</h2>
-        </div>
-        <div className="overflow-x-auto">
-          <table className="w-full text-left text-sm">
-            <thead className="text-[#93a0b5]">
-              <tr>
-                <th className="px-4 py-3 font-medium">Email</th>
-                <th className="px-4 py-3 font-medium">Session</th>
-                <th className="px-4 py-3 font-medium"></th>
-              </tr>
-            </thead>
-            <tbody>
-              {people.length === 0 ? (
-                <tr>
-                  <td className="px-4 py-8 text-[#93a0b5]" colSpan={3}>
-                    No users yet. Add one above, then assign a JSON.
-                  </td>
-                </tr>
-              ) : (
-                people.map((user) => (
-                  <tr key={user.id} className="border-t border-[#2a3344]">
-                    <td className="px-4 py-3">{user.email}</td>
-                    <td className={`px-4 py-3 ${sessionStatus(user).expired ? "text-[#ff7b7b]" : "text-[#93a0b5]"}`}>
-                      {sessionStatus(user).text}
-                    </td>
-                    <td className="px-4 py-3 text-right">
-                      <div className="flex justify-end gap-3">
-                        <button className="text-[#3dd6c6]" onClick={() => startEdit(user)}>
-                          Edit
-                        </button>
-                        <button onClick={() => removeUser(user.id)} className="text-[#ff7b7b]">
-                          Delete
-                        </button>
-                      </div>
-                    </td>
-                  </tr>
-                ))
-              )}
-            </tbody>
-          </table>
-        </div>
-      </section>
-
-      {editing ? (
-        <form onSubmit={saveEdit} className="mb-8 space-y-4 rounded-2xl border border-[#2a3344] bg-[#181e29] p-6">
-          <div>
-            <h2 className="text-lg font-semibold">Edit user</h2>
-            <p className="text-sm text-[#93a0b5]">Leave password blank to keep the current one.</p>
+          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+            <StatCard label="Total users" value={stats.total} tone="total" />
+            <StatCard label="Active sessions" value={stats.active} tone="active" />
+            <StatCard label="Expired" value={stats.expired} tone="expired" />
+            <StatCard label="No session" value={stats.none} tone="none" />
           </div>
-          <div className="grid gap-3 sm:grid-cols-2">
-            <label className="text-sm text-[#93a0b5]">
-              Email
-              <input
-                className={field}
-                type="email"
-                value={editEmail}
-                onChange={(e) => setEditEmail(e.target.value)}
-                required
-              />
-            </label>
-            <label className="text-sm text-[#93a0b5]">
-              New password
-              <input
-                className={field}
-                type="password"
-                placeholder="Optional"
-                value={editPassword}
-                onChange={(e) => setEditPassword(e.target.value)}
-                minLength={8}
-              />
-            </label>
-          </div>
+
           <div className="flex flex-wrap gap-3">
-            <button
-              className="rounded-lg bg-[#3dd6c6] px-4 py-2.5 font-semibold text-[#06221f] disabled:opacity-60"
-              disabled={editBusy}
-            >
-              {editBusy ? "Saving…" : "Save user"}
+            <button className="btn-primary" onClick={() => setTab("users")}>
+              Manage users
             </button>
-            <button
-              type="button"
-              className="rounded-lg border border-[#2a3344] px-4 py-2.5 text-[#93a0b5]"
-              onClick={() => setEditing(null)}
-            >
-              Cancel
+            <button className="btn-ghost" onClick={() => setTab("guide")}>
+              Read the admin guide
             </button>
           </div>
-          {error ? <p className="text-sm text-[#ff7b7b]">{error}</p> : null}
-          {editNote ? <p className="text-sm text-[#5ee6a0]">{editNote}</p> : null}
-        </form>
+
+          <div>
+            <h2 className="mb-1 text-lg font-semibold text-text">Downloads</h2>
+            <p className="mb-4 text-sm text-muted">
+              Install Capture yourself; users get Apply from their own dashboard.
+            </p>
+            <div className="grid gap-4 md:grid-cols-2">
+              <ExtensionDownload
+                title="Capture extension"
+                description="Admin only. Sign in here, stay logged into app.grammarly.com, and turn on Keep session fresh so assigned cookies update by themselves."
+                href="/downloads/pvapins-capture.zip"
+                filename="pvapins-capture.zip"
+              />
+              <ExtensionDownload
+                title="Apply extension (for users)"
+                description="Users download this from their own dashboard. You can grab a copy here to test."
+                href="/downloads/pvapins-apply.zip"
+                filename="pvapins-apply.zip"
+              />
+            </div>
+          </div>
+        </div>
       ) : null}
 
-      <div className="grid gap-4 md:grid-cols-2">
-        <ExtensionDownload
-          title="Capture extension"
-          description="Admin only. Sign in here, stay logged into app.grammarly.com, and turn on Keep session fresh so assigned cookies update by themselves."
-          href="/downloads/pvapins-capture.zip"
-          filename="pvapins-capture.zip"
-        />
-        <ExtensionDownload
-          title="Apply extension (for users)"
-          description="Users download this from their own dashboard. You can grab a copy here to test."
-          href="/downloads/pvapins-apply.zip"
-          filename="pvapins-apply.zip"
-        />
-      </div>
+      {tab === "users" ? (
+        <div className="space-y-6">
+          <div className="grid gap-6 lg:grid-cols-2">
+            <form onSubmit={addUser} className="card space-y-4">
+              <div>
+                <h2 className="text-lg font-semibold text-text">Add a user</h2>
+                <p className="mt-1 text-sm text-muted">Email and password only. Assign JSON in the next card.</p>
+              </div>
+              <label className="label">
+                Email
+                <input
+                  className={field}
+                  type="email"
+                  placeholder="user@email.com"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  required
+                />
+              </label>
+              <label className="label">
+                Password
+                <input
+                  className={field}
+                  type="password"
+                  placeholder="At least 8 characters"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  required
+                  minLength={8}
+                />
+              </label>
+              <button className="btn-primary" disabled={busy}>
+                {busy ? "Saving…" : "Add user"}
+              </button>
+            </form>
 
-      <div className="mt-8">
-        <ChangePasswordForm />
-      </div>
+            <form onSubmit={assignJson} className="card space-y-4">
+              <div>
+                <h2 className="text-lg font-semibold text-text">Assign JSON</h2>
+                <p className="mt-1 text-sm text-muted">
+                  {localDemo
+                    ? "Local demo: Grammarly or PVAPins session JSON. Production builds hide PVAPins. Capture can also push a live session without this upload."
+                    : "Upload one Grammarly file, or leave Capture on “Keep session fresh” so it assigns new cookies when Grammarly refreshes them."}
+                </p>
+              </div>
+              <label className="group flex cursor-pointer flex-col items-center justify-center rounded-xl border-2 border-dashed border-line bg-surface-2 px-4 py-8 text-center transition hover:border-accent hover:bg-accent/5">
+                <svg
+                  aria-hidden
+                  viewBox="0 0 24 24"
+                  className="mb-3 size-7 text-muted transition group-hover:text-accent"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="1.8"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                >
+                  <path d="M12 16V4m0 0 4 4m-4-4L8 8" />
+                  <path d="M4 16v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-2" />
+                </svg>
+                <span className="font-semibold text-accent">
+                  {jsonFile ? "Change file" : "Click to choose a .json file"}
+                </span>
+                <span className="mt-1.5 text-sm text-muted">
+                  {jsonFile ? jsonFile.name : "No file selected yet"}
+                </span>
+                <input
+                  className="sr-only"
+                  type="file"
+                  accept="application/json,.json"
+                  onChange={(e) => setJsonFile(e.target.files?.[0] || null)}
+                />
+              </label>
+              <button className="btn-primary" disabled={jsonBusy || !jsonFile || people.length === 0}>
+                {jsonBusy ? "Assigning…" : "Assign JSON"}
+              </button>
+              {people.length === 0 ? (
+                <p className="text-sm text-muted">Add at least one user before assigning a session.</p>
+              ) : null}
+              {jsonNote ? <p className="text-sm text-success">{jsonNote}</p> : null}
+            </form>
+          </div>
+
+          {error ? <p className="text-sm text-danger">{error}</p> : null}
+
+          <section className="overflow-hidden rounded-2xl border border-line bg-surface">
+            <div className="flex items-center justify-between border-b border-line px-5 py-3.5">
+              <h2 className="font-semibold text-text">Users</h2>
+              <span className="badge-muted">{people.length} total</span>
+            </div>
+            <div className="overflow-x-auto">
+              <table className="w-full text-left text-sm">
+                <thead className="text-xs uppercase tracking-wide text-muted">
+                  <tr>
+                    <th className="px-5 py-3 font-medium">Email</th>
+                    <th className="px-5 py-3 font-medium">Session</th>
+                    <th className="px-5 py-3 font-medium text-right">Actions</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {people.length === 0 ? (
+                    <tr>
+                      <td className="px-5 py-10 text-center text-muted" colSpan={3}>
+                        No users yet. Add one above, then assign a JSON.
+                      </td>
+                    </tr>
+                  ) : (
+                    people.map((user) => {
+                      const status = sessionStatus(user);
+                      return (
+                        <tr key={user.id} className="border-t border-line transition hover:bg-surface-2/60">
+                          <td className="px-5 py-3.5 font-medium text-text">{user.email}</td>
+                          <td className="px-5 py-3.5">
+                            <span className={badgeClass[status.kind]}>{status.label}</span>
+                            <span className="mt-1 block text-xs text-muted">{status.detail}</span>
+                          </td>
+                          <td className="px-5 py-3.5 text-right">
+                            <div className="flex justify-end gap-1">
+                              <button className="btn-ghost px-3 py-1.5" onClick={() => startEdit(user)}>
+                                Edit
+                              </button>
+                              <button onClick={() => removeUser(user.id)} className="btn-danger px-3 py-1.5">
+                                Delete
+                              </button>
+                            </div>
+                          </td>
+                        </tr>
+                      );
+                    })
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </section>
+
+          {editing ? (
+            <form onSubmit={saveEdit} className="card space-y-4">
+              <div>
+                <h2 className="text-lg font-semibold text-text">Edit user</h2>
+                <p className="mt-1 text-sm text-muted">Leave password blank to keep the current one.</p>
+              </div>
+              <div className="grid gap-4 sm:grid-cols-2">
+                <label className="label">
+                  Email
+                  <input
+                    className={field}
+                    type="email"
+                    value={editEmail}
+                    onChange={(e) => setEditEmail(e.target.value)}
+                    required
+                  />
+                </label>
+                <label className="label">
+                  New password
+                  <input
+                    className={field}
+                    type="password"
+                    placeholder="Optional"
+                    value={editPassword}
+                    onChange={(e) => setEditPassword(e.target.value)}
+                    minLength={8}
+                  />
+                </label>
+              </div>
+              <div className="flex flex-wrap gap-3">
+                <button className="btn-primary" disabled={editBusy}>
+                  {editBusy ? "Saving…" : "Save user"}
+                </button>
+                <button type="button" className="btn-ghost" onClick={() => setEditing(null)}>
+                  Cancel
+                </button>
+              </div>
+              {editNote ? <p className="text-sm text-success">{editNote}</p> : null}
+            </form>
+          ) : null}
+        </div>
+      ) : null}
+
+      {tab === "guide" ? <AdminGuide /> : null}
+
+      {tab === "password" ? (
+        <div className="max-w-xl">
+          <ChangePasswordForm />
+        </div>
+      ) : null}
     </AppShell>
   );
 }

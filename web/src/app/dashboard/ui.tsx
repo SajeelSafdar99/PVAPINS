@@ -46,8 +46,8 @@ export function UserDashboard({ email }: { email: string }) {
       <p
         className={`mb-6 rounded-xl border px-4 py-3 text-sm ${
           ready
-            ? "border-[#1f3d34] bg-[#10241c] text-[#5ee6a0]"
-            : "border-[#2a3344] bg-[#181e29] text-[#93a0b5]"
+            ? "border-success/30 bg-success/10 text-success"
+            : "border-line bg-surface text-muted"
         }`}
       >
         {sessionNote}

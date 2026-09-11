@@ -1,17 +1,102 @@
 @import "tailwindcss";
 
+/*
+  Design tokens. Everything visual references these — change a value here and it
+  updates across every page. Utilities like `bg-surface`, `text-muted`,
+  `border-line`, `text-accent`, `ring-accent` are generated from the
+  `--color-*` names below (Tailwind v4 @theme).
+*/
+@theme {
+  --color-bg: #0a0f17;
+  --color-surface: #141b28;
+  --color-surface-2: #0e141e;
+  --color-line: #253044;
+  --color-line-strong: #34435d;
+  --color-text: #eaf0f9;
+  --color-muted: #8f9cb2;
+  --color-accent: #3dd6c6;
+  --color-accent-strong: #34c9b7;
+  --color-accent-ink: #052420;
+  --color-danger: #ff8484;
+  --color-danger-ink: #3a0f0f;
+  --color-success: #58e39b;
+
+  --radius-lg: 0.75rem;
+  --radius-xl: 1rem;
+  --radius-2xl: 1.25rem;
+}
+
 :root {
-  --bg: #0f141c;
-  --card: #181e29;
-  --line: #2a3344;
-  --text: #e8eef8;
-  --muted: #93a0b5;
-  --accent: #3dd6c6;
+  color-scheme: dark;
 }
 
 body {
   min-height: 100vh;
-  background: var(--bg);
-  color: var(--text);
+  background-color: var(--color-bg);
+  /* Faint brand glow anchored to the top of the page. */
+  background-image: radial-gradient(
+    60rem 40rem at 50% -10%,
+    rgba(61, 214, 198, 0.1),
+    transparent 60%
+  );
+  background-attachment: fixed;
+  color: var(--color-text);
   font-family: var(--font-geist-sans), system-ui, sans-serif;
+}
+
+/*
+  Component classes. Each is self-contained (only real utilities are applied),
+  so a single class like `btn-primary` carries the full base + variant — Tailwind
+  v4 `@apply` cannot inline another component class.
+*/
+@layer components {
+  /* Surfaces */
+  .card {
+    @apply rounded-2xl border border-line bg-surface p-6 shadow-[0_1px_0_rgba(255,255,255,0.02),0_20px_60px_-30px_rgba(0,0,0,0.7)];
+  }
+
+  /* Form controls */
+  .label {
+    @apply block text-sm font-medium text-muted;
+  }
+  .field {
+    @apply mt-1.5 w-full rounded-lg border border-line bg-surface-2 px-3 py-2.5 text-text placeholder:text-muted/60 outline-none transition
+      focus:border-accent focus:ring-2 focus:ring-accent/25;
+  }
+
+  /* Buttons */
+  .btn-primary {
+    @apply inline-flex items-center justify-center gap-2 rounded-lg px-4 py-2.5 text-sm font-semibold transition
+      disabled:cursor-not-allowed disabled:opacity-60
+      bg-accent text-accent-ink shadow-[0_10px_30px_-12px_rgba(61,214,198,0.7)]
+      hover:bg-accent-strong active:translate-y-px;
+  }
+  .btn-ghost {
+    @apply inline-flex items-center justify-center gap-2 rounded-lg px-4 py-2.5 text-sm font-semibold transition
+      disabled:cursor-not-allowed disabled:opacity-60
+      border border-line bg-transparent text-muted hover:border-line-strong hover:text-text;
+  }
+  .btn-danger {
+    @apply inline-flex items-center justify-center gap-2 rounded-lg px-4 py-2.5 text-sm font-semibold transition
+      disabled:cursor-not-allowed disabled:opacity-60
+      bg-transparent text-danger hover:bg-danger/10;
+  }
+
+  /* Status pills */
+  .badge-muted {
+    @apply inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs font-medium
+      border-line bg-surface-2 text-muted;
+  }
+  .badge-success {
+    @apply inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs font-medium
+      border-success/30 bg-success/10 text-success;
+  }
+  .badge-danger {
+    @apply inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs font-medium
+      border-danger/30 bg-danger/10 text-danger;
+  }
+
+  .link-accent {
+    @apply font-medium text-accent transition hover:text-accent-strong;
+  }
 }

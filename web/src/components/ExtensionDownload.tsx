@@ -10,18 +10,14 @@ export function ExtensionDownload({
   filename: string;
 }) {
   return (
-    <article className="flex flex-col rounded-2xl border border-[#2a3344] bg-[#181e29] p-5">
-      <h2 className="text-lg font-semibold">{title}</h2>
-      <p className="mt-2 flex-1 text-sm leading-6 text-[#93a0b5]">{description}</p>
-      <p className="mt-4 rounded-lg bg-[#10141c] px-3 py-2 text-xs leading-5 text-[#93a0b5]">
+    <article className="card flex flex-col">
+      <h2 className="text-lg font-semibold text-text">{title}</h2>
+      <p className="mt-2 flex-1 text-sm leading-6 text-muted">{description}</p>
+      <p className="mt-4 rounded-lg border border-line bg-surface-2 px-3 py-2.5 text-xs leading-5 text-muted">
         Chrome cannot install a zip. Unzip it, open chrome://extensions, turn on Developer mode,
         click Load unpacked, and choose the folder that contains manifest.json.
       </p>
-      <a
-        href={href}
-        download={filename}
-        className="mt-4 inline-flex justify-center rounded-lg bg-[#3dd6c6] px-4 py-2.5 text-center font-semibold text-[#06221f]"
-      >
+      <a href={href} download={filename} className="btn-primary mt-4 w-full">
         Download zip
       </a>
     </article>
