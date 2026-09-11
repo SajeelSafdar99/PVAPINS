@@ -132,14 +132,25 @@ export function AdminDashboard({
     return { total: people.length, active, expired, none };
   }, [people]);
 
-  async function loadUsers() {
+  async function fetchUsers(): Promise<UserRow[] | null> {
     const response = await api("/api/admin/users");
-    if (!response.ok) return;
-    setUsers(await response.json());
+    if (!response.ok) return null;
+    return (await response.json()) as UserRow[];
+  }
+
+  async function loadUsers() {
+    const rows = await fetchUsers();
+    if (rows) setUsers(rows);
   }
 
   useEffect(() => {
-    loadUsers();
+    let active = true;
+    fetchUsers().then((rows) => {
+      if (active && rows) setUsers(rows);
+    });
+    return () => {
+      active = false;
+    };
   }, []);
 
   async function addUser(event: FormEvent) {
