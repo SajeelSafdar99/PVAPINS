@@ -4,9 +4,34 @@ import { useEffect, useState } from "react";
 import { AppShell } from "@/components/AppShell";
 import { ChangePasswordForm } from "@/components/ChangePasswordForm";
 import { ExtensionDownload } from "@/components/ExtensionDownload";
+import { UserGuide } from "@/components/guides";
 import { api } from "@/lib/api";
 
+type TabKey = "home" | "guide" | "password";
+
+const TABS: { key: TabKey; label: string; title: string; subtitle: string }[] = [
+  {
+    key: "home",
+    label: "Home",
+    title: "Your extension",
+    subtitle: "Download Apply and check your session. You cannot upload a JSON — the admin assigns one for you.",
+  },
+  {
+    key: "guide",
+    label: "User guide",
+    title: "User guide",
+    subtitle: "Install Apply, sign in, and apply your assigned Grammarly session.",
+  },
+  {
+    key: "password",
+    label: "Password",
+    title: "Change password",
+    subtitle: "Update the password for your account.",
+  },
+];
+
 export function UserDashboard({ email }: { email: string }) {
+  const [tab, setTab] = useState<TabKey>("home");
   const [sessionNote, setSessionNote] = useState("Checking for an assigned session…");
   const [ready, setReady] = useState(false);
 
@@ -35,36 +60,65 @@ export function UserDashboard({ email }: { email: string }) {
       .catch(() => setSessionNote("Could not check session status."));
   }, []);
 
+  const meta = TABS.find((item) => item.key === tab) ?? TABS[0];
+
+  const tabBar = (
+    <>
+      {TABS.map((item) => {
+        const active = item.key === tab;
+        return (
+          <button
+            key={item.key}
+            type="button"
+            onClick={() => setTab(item.key)}
+            aria-current={active ? "page" : undefined}
+            className={`shrink-0 border-b-2 px-4 py-3 text-sm font-medium transition ${
+              active ? "border-accent text-text" : "border-transparent text-muted hover:text-text"
+            }`}
+          >
+            {item.label}
+          </button>
+        );
+      })}
+    </>
+  );
+
   return (
     <AppShell
       role="user"
       email={email}
-      current="/dashboard"
-      title="Your extension"
-      subtitle="Download Apply, then follow the User guide. You cannot upload a JSON — the admin already assigned one."
+      showNav={false}
+      tabBar={tabBar}
+      title={meta.title}
+      subtitle={meta.subtitle}
     >
-      <p
-        className={`mb-6 rounded-xl border px-4 py-3 text-sm ${
-          ready
-            ? "border-success/30 bg-success/10 text-success"
-            : "border-line bg-surface text-muted"
-        }`}
-      >
-        {sessionNote}
-      </p>
+      {tab === "home" ? (
+        <div className="space-y-6">
+          <p
+            className={`rounded-xl border px-4 py-3 text-sm ${
+              ready ? "border-success/30 bg-success/10 text-success" : "border-line bg-surface text-muted"
+            }`}
+          >
+            {sessionNote}
+          </p>
+          <div className="max-w-md">
+            <ExtensionDownload
+              title="Apply extension"
+              description="Install this, sign in with the same email and password, apply once, then leave it signed in. It will refresh Grammarly cookies when the admin pushes a new session."
+              href="/downloads/pvapins-apply.zip"
+              filename="pvapins-apply.zip"
+            />
+          </div>
+        </div>
+      ) : null}
 
-      <div className="max-w-md">
-        <ExtensionDownload
-          title="Apply extension"
-          description="Install this, sign in with the same email and password, apply once, then leave it signed in. It will refresh Grammarly cookies when the admin pushes a new session."
-          href="/downloads/pvapins-apply.zip"
-          filename="pvapins-apply.zip"
-        />
-      </div>
+      {tab === "guide" ? <UserGuide /> : null}
 
-      <div className="mt-8 max-w-2xl">
-        <ChangePasswordForm />
-      </div>
+      {tab === "password" ? (
+        <div className="max-w-xl">
+          <ChangePasswordForm />
+        </div>
+      ) : null}
     </AppShell>
   );
 }
