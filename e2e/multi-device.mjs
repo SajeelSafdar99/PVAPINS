@@ -3,7 +3,7 @@ import fs from "node:fs";
 import path from "node:path";
 
 const SITE = process.env.APP_URL || "http://localhost:3000";
-const ADMIN_EMAIL = process.env.ADMIN_EMAIL || "moinakbarali@gmail.com";
+const ADMIN_EMAIL = process.env.ADMIN_EMAIL || "seo@smspin.io";
 const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || "12345678";
 const DEMO_EMAIL = process.env.DEMO_EMAIL || "demo.multidevice@example.com";
 const DEMO_PASSWORD = process.env.DEMO_PASSWORD || "DemoUser12!";

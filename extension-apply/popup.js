@@ -12,6 +12,10 @@ const userCard = document.getElementById("userCard");
 const actionCard = document.getElementById("actionCard");
 const whoEl = document.getElementById("who");
 const autoRefreshEl = document.getElementById("autoRefresh");
+const updateCard = document.getElementById("updateCard");
+const updateText = document.getElementById("updateText");
+const updateBtn = document.getElementById("updateBtn");
+const extVersionEl = document.getElementById("extVersion");
 
 let payload = null;
 let assignedUpdatedAt = null;
@@ -72,6 +76,48 @@ function setPayload(next) {
   return { summary, target };
 }
 
+function showUpdate(update) {
+  if (!update?.available) {
+    updateCard.classList.add("hidden");
+    return;
+  }
+  updateText.textContent = `Update ${update.current} → ${update.latest}. Chrome cannot install a zip for you. Download it, unzip, then reload the unpacked folder on chrome://extensions.`;
+  updateCard.classList.remove("hidden");
+}
+
+async function restoreUpdate() {
+  extVersionEl.textContent = `v${chrome.runtime.getManifest().version}`;
+  const { extensionUpdate } = await chrome.storage.local.get("extensionUpdate");
+  showUpdate(extensionUpdate);
+  chrome.runtime.sendMessage({ type: "CHECK_UPDATE" }, (result) => {
+    if (chrome.runtime.lastError || result?.error || result?.skipped) return;
+    showUpdate(result);
+  });
+}
+
+updateBtn.addEventListener("click", async () => {
+  const { extensionUpdate } = await chrome.storage.local.get("extensionUpdate");
+  updateBtn.disabled = true;
+  chrome.runtime.sendMessage(
+    {
+      type: "DOWNLOAD_UPDATE",
+      zipUrl: extensionUpdate?.zipUrl,
+      filename: extensionUpdate?.filename,
+    },
+    (result) => {
+      updateBtn.disabled = false;
+      if (result?.error) {
+        setStatus(result.error, "bad");
+        return;
+      }
+      setStatus(
+        "Downloaded the new zip. Unzip it, open chrome://extensions, reload the unpacked folder (or Remove + Load unpacked).",
+        "ok"
+      );
+    }
+  );
+});
+
 async function restore() {
   const saved = await chrome.storage.local.get(["apiUrl", "token", "user", "autoRefresh", "lastPull"]);
   if (saved.apiUrl) apiUrlEl.value = saved.apiUrl;
@@ -120,9 +166,12 @@ loginBtn.addEventListener("click", async () => {
     await chrome.runtime.sendMessage({ type: "SET_AUTO_REFRESH", enabled: true });
     passwordEl.value = "";
     renderAuth(data.user);
+    await chrome.runtime.sendMessage({ type: "FLUSH_LOGS" });
     setStatus("Signed in. Fetch once, apply, then leave this signed in for automatic updates.", "ok");
   } catch (error) {
-    setStatus(error instanceof Error ? error.message : String(error), "bad");
+    const text = error instanceof Error ? error.message : String(error);
+    setStatus(text, "bad");
+    chrome.runtime.sendMessage({ type: "REPORT_LOG", action: "auth.login", message: text });
   } finally {
     loginBtn.disabled = false;
   }
@@ -176,7 +225,9 @@ fetchBtn.addEventListener("click", async () => {
       "ok"
     );
   } catch (error) {
-    setStatus(error instanceof Error ? error.message : String(error), "bad");
+    const text = error instanceof Error ? error.message : String(error);
+    setStatus(text, "bad");
+    chrome.runtime.sendMessage({ type: "REPORT_LOG", action: "session.fetch", message: text });
   } finally {
     fetchBtn.disabled = false;
   }
@@ -217,6 +268,7 @@ applyBtn.addEventListener("click", async () => {
 
     if (result?.error) {
       setStatus(result.error, "bad");
+      chrome.runtime.sendMessage({ type: "REPORT_LOG", action: "session.apply", message: result.error });
       return;
     }
 
@@ -240,10 +292,13 @@ applyBtn.addEventListener("click", async () => {
     }
     setStatus(lines.join("\n"), authOk ? "ok" : "bad");
   } catch (error) {
-    setStatus(error instanceof Error ? error.message : String(error), "bad");
+    const text = error instanceof Error ? error.message : String(error);
+    setStatus(text, "bad");
+    chrome.runtime.sendMessage({ type: "REPORT_LOG", action: "session.apply", message: text });
   } finally {
     applyBtn.disabled = false;
   }
 });
 
 restore();
+restoreUpdate();

@@ -8,6 +8,7 @@ import {
 } from "@/lib/auth";
 import { json, options } from "@/lib/http";
 import { sessionExpiresAt } from "@/lib/session";
+import { requestIp, writeLog } from "@/lib/log";
 
 export function OPTIONS(request: Request) {
   return options(request);
@@ -71,6 +72,15 @@ export async function POST(request: Request) {
       passwordHash: await hashPassword(password),
       role: "USER",
     },
+  });
+
+  await writeLog({
+    level: "info",
+    source: "api",
+    action: "user.create",
+    message: `Created user ${user.email}.`,
+    email: user.email,
+    ip: requestIp(request),
   });
 
   return json(request, { id: user.id, email: user.email, role: user.role }, 201);

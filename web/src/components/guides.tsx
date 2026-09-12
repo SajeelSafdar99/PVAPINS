@@ -42,6 +42,20 @@ export const adminGuideSections: GuideSection[] = [
       },
     ],
   },
+  {
+    title: "Trace problems in Logs",
+    steps: [
+      {
+        title: "Open the Logs tab to see sign-ins, assigns, and extension errors.",
+        detail:
+          "Failed Apply fetches are queued on the user’s Chrome and sent when the API is reachable again. Passwords, tokens, and cookie values are never stored.",
+      },
+      {
+        title: "When Capture’s popup offers an update, download the new zip and reload the unpacked folder.",
+        detail: "Chrome will not overwrite an unpacked extension. Users see the same prompt in Apply.",
+      },
+    ],
+  },
 ];
 
 export const userGuideSections: GuideSection[] = [
@@ -67,6 +81,11 @@ export const userGuideSections: GuideSection[] = [
         title: "Click Fetch assigned session, then Apply and open Grammarly once.",
         detail:
           "Leave Apply signed in after that. It pulls a new copy when the admin refreshes the session. For Incognito: chrome://extensions → Apply → Details → Allow in Incognito, then open the popup from an Incognito window.",
+      },
+      {
+        title: "If the popup says a newer zip is available, download it and reload the unpacked folder.",
+        detail:
+          "Chrome cannot replace an unpacked extension by itself. Unzip the new file, then on chrome://extensions reload that folder (or Remove and Load unpacked again).",
       },
     ],
   },

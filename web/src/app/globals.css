@@ -95,6 +95,10 @@ body {
     @apply inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs font-medium
       border-danger/30 bg-danger/10 text-danger;
   }
+  .badge-warn {
+    @apply inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs font-medium
+      border-accent/30 bg-accent/10 text-accent;
+  }
 
   .link-accent {
     @apply font-medium text-accent transition hover:text-accent-strong;

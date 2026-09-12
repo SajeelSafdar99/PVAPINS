@@ -2,6 +2,7 @@ import { prisma } from "@/lib/db";
 import { ensureSuperAdmin, userFromRequest } from "@/lib/auth";
 import { json, options } from "@/lib/http";
 import { parseSessionPayload, sessionExpiresAt, sessionFingerprint } from "@/lib/session";
+import { requestIp, writeLog } from "@/lib/log";
 
 export function OPTIONS(request: Request) {
   return options(request);
@@ -18,7 +19,16 @@ export async function POST(request: Request) {
   try {
     session = parseSessionPayload(await request.json());
   } catch (error) {
-    return json(request, { error: error instanceof Error ? error.message : "Invalid session." }, 400);
+    const message = error instanceof Error ? error.message : "Invalid session.";
+    await writeLog({
+      level: "error",
+      source: "api",
+      action: "session.assign",
+      message,
+      email: admin.email,
+      ip: requestIp(request),
+    });
+    return json(request, { error: message }, 400);
   }
 
   const users = await prisma.user.findMany({
@@ -26,6 +36,14 @@ export async function POST(request: Request) {
     select: { id: true, session: { select: { payload: true, updatedAt: true } } },
   });
   if (users.length === 0) {
+    await writeLog({
+      level: "warn",
+      source: "api",
+      action: "session.assign",
+      message: "No users to assign.",
+      email: admin.email,
+      ip: requestIp(request),
+    });
     return json(request, { error: "There are no users to assign this file to." }, 400);
   }
 
@@ -57,6 +75,15 @@ export async function POST(request: Request) {
       })
     )
   );
+
+  await writeLog({
+    level: "info",
+    source: "api",
+    action: "session.assign",
+    message: `Assigned ${session.cookieCount} cookies to ${users.length} users. Expires ${expiresAt || "unknown"}.`,
+    email: admin.email,
+    ip: requestIp(request),
+  });
 
   return json(request, {
     ok: true,

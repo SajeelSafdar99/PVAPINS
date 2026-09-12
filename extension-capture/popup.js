@@ -13,6 +13,10 @@ const hintEl = document.getElementById("hint");
 const authCard = document.getElementById("authCard");
 const userCard = document.getElementById("userCard");
 const whoEl = document.getElementById("who");
+const updateCard = document.getElementById("updateCard");
+const updateText = document.getElementById("updateText");
+const updateBtn = document.getElementById("updateBtn");
+const extVersionEl = document.getElementById("extVersion");
 
 function setStatus(message, kind) {
   statusEl.textContent = message;
@@ -89,6 +93,48 @@ function renderAuth(user, lastSync) {
   }
 }
 
+function showUpdate(update) {
+  if (!update?.available) {
+    updateCard.classList.add("hidden");
+    return;
+  }
+  updateText.textContent = `Update ${update.current} → ${update.latest}. Chrome cannot install a zip for you. Download it, unzip, then reload the unpacked folder on chrome://extensions.`;
+  updateCard.classList.remove("hidden");
+}
+
+async function restoreUpdate() {
+  extVersionEl.textContent = `v${chrome.runtime.getManifest().version}`;
+  const { extensionUpdate } = await chrome.storage.local.get("extensionUpdate");
+  showUpdate(extensionUpdate);
+  chrome.runtime.sendMessage({ type: "CHECK_UPDATE" }, (result) => {
+    if (chrome.runtime.lastError || result?.error || result?.skipped) return;
+    showUpdate(result);
+  });
+}
+
+updateBtn.addEventListener("click", async () => {
+  const { extensionUpdate } = await chrome.storage.local.get("extensionUpdate");
+  updateBtn.disabled = true;
+  chrome.runtime.sendMessage(
+    {
+      type: "DOWNLOAD_UPDATE",
+      zipUrl: extensionUpdate?.zipUrl,
+      filename: extensionUpdate?.filename,
+    },
+    (result) => {
+      updateBtn.disabled = false;
+      if (result?.error) {
+        setStatus(result.error, "bad");
+        return;
+      }
+      setStatus(
+        "Downloaded the new zip. Unzip it, open chrome://extensions, reload the unpacked folder (or Remove + Load unpacked).",
+        "ok"
+      );
+    }
+  );
+});
+
 async function restore() {
   const saved = await chrome.storage.local.get(["apiUrl", "token", "user", "autoRefresh", "lastSync"]);
   if (saved.apiUrl) apiUrlEl.value = saved.apiUrl;
@@ -132,9 +178,12 @@ loginBtn.addEventListener("click", async () => {
     await chrome.storage.local.set({ token: data.token, user: data.user });
     passwordEl.value = "";
     renderAuth(data.user);
+    await chrome.runtime.sendMessage({ type: "FLUSH_LOGS" });
     setStatus("Signed in. Turn on Keep session fresh while this Chrome profile stays on Grammarly.", "ok");
   } catch (error) {
-    setStatus(error instanceof Error ? error.message : String(error), "bad");
+    const text = error instanceof Error ? error.message : String(error);
+    setStatus(text, "bad");
+    chrome.runtime.sendMessage({ type: "REPORT_LOG", action: "auth.login", message: text });
   } finally {
     loginBtn.disabled = false;
   }
@@ -173,11 +222,14 @@ syncBtn.addEventListener("click", async () => {
     const result = await chrome.runtime.sendMessage({ type: "SYNC_NOW" });
     if (result?.error) {
       setStatus(result.error, "bad");
+      chrome.runtime.sendMessage({ type: "REPORT_LOG", action: "session.sync", message: result.error });
       return;
     }
     setStatus(formatSync(result), "ok");
   } catch (error) {
-    setStatus(error instanceof Error ? error.message : String(error), "bad");
+    const text = error instanceof Error ? error.message : String(error);
+    setStatus(text, "bad");
+    chrome.runtime.sendMessage({ type: "REPORT_LOG", action: "session.sync", message: text });
   } finally {
     syncBtn.disabled = false;
   }
@@ -206,11 +258,21 @@ exportBtn.addEventListener("click", async () => {
       "Upload this file on the admin website, or sign in above and push it from here.",
     ];
     setStatus(lines.join("\n"), payload.summary.hasRequired ? "ok" : "bad");
+    if (!payload.summary.hasRequired) {
+      chrome.runtime.sendMessage({
+        type: "REPORT_LOG",
+        action: "session.export",
+        message: `${target.requiredCookie || "Required cookie"} missing from ${target.label} export.`,
+      });
+    }
   } catch (error) {
-    setStatus(error instanceof Error ? error.message : String(error), "bad");
+    const text = error instanceof Error ? error.message : String(error);
+    setStatus(text, "bad");
+    chrome.runtime.sendMessage({ type: "REPORT_LOG", action: "session.export", message: text });
   } finally {
     exportBtn.disabled = false;
   }
 });
 
 restore();
+restoreUpdate();

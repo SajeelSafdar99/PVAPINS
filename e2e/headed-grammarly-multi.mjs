@@ -4,7 +4,7 @@ import path from "node:path";
 
 const SITE = process.env.APP_URL || "http://localhost:3000";
 const GRAMMARLY = "https://app.grammarly.com/";
-const ADMIN_EMAIL = "moinakbarali@gmail.com";
+const ADMIN_EMAIL = "seo@smspin.io";
 const ADMIN_PASSWORD = "12345678";
 const DEMO_EMAIL = "demo.multidevice@example.com";
 const DEMO_PASSWORD = "DemoUser12!";

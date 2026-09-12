@@ -1,6 +1,7 @@
 import { prisma } from "@/lib/db";
 import { hashPassword, userFromRequest, validPassword } from "@/lib/auth";
 import { json, options } from "@/lib/http";
+import { requestIp, writeLog } from "@/lib/log";
 
 export function OPTIONS(request: Request) {
   return options(request);
@@ -18,6 +19,14 @@ export async function POST(request: Request) {
   await prisma.user.update({
     where: { id: user.id },
     data: { passwordHash: await hashPassword(body.newPassword) },
+  });
+  await writeLog({
+    level: "info",
+    source: "api",
+    action: "auth.password",
+    message: "Password changed.",
+    email: user.email,
+    ip: requestIp(request),
   });
   return json(request, { ok: true });
 }

@@ -6,6 +6,7 @@ import { ChangePasswordForm } from "@/components/ChangePasswordForm";
 import { ExtensionDownload } from "@/components/ExtensionDownload";
 import { UserGuide } from "@/components/guides";
 import { api } from "@/lib/api";
+import { EXTENSIONS } from "@/lib/extensions";
 
 type TabKey = "home" | "guide" | "password";
 
@@ -105,8 +106,9 @@ export function UserDashboard({ email }: { email: string }) {
             <ExtensionDownload
               title="Apply extension"
               description="Install this, sign in with the same email and password, apply once, then leave it signed in. It will refresh Grammarly cookies when the admin pushes a new session."
-              href="/downloads/pvapins-apply.zip"
-              filename="pvapins-apply.zip"
+              href={EXTENSIONS.apply.path}
+              filename={EXTENSIONS.apply.filename}
+              version={EXTENSIONS.apply.version}
             />
           </div>
         </div>

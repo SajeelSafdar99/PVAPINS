@@ -9,6 +9,7 @@ import {
   verifyPassword,
 } from "@/lib/auth";
 import { corsHeaders, json, options } from "@/lib/http";
+import { requestIp, writeLog } from "@/lib/log";
 import { clientIp, rateLimit } from "@/lib/rate-limit";
 
 export function OPTIONS(request: Request) {
@@ -24,6 +25,14 @@ export async function POST(request: Request) {
 
     const limited = rateLimit(`login:${clientIp(request)}:${email}`, 8, 15 * 60 * 1000);
     if (!limited.ok) {
+      await writeLog({
+        level: "warn",
+        source: "api",
+        action: "auth.login",
+        message: "Rate limited.",
+        email,
+        ip: requestIp(request),
+      });
       return json(request, { error: "Too many login attempts. Try again in a few minutes." }, 429);
     }
 
@@ -33,11 +42,27 @@ export async function POST(request: Request) {
 
     const user = await prisma.user.findUnique({ where: { email } });
     if (!user || !(await verifyPassword(password, user.passwordHash))) {
+      await writeLog({
+        level: "warn",
+        source: "api",
+        action: "auth.login",
+        message: "Invalid email or password.",
+        email,
+        ip: requestIp(request),
+      });
       return json(request, { error: "Invalid email or password." }, 401);
     }
 
     const tokenUser = { id: user.id, email: user.email, role: user.role };
     const token = await signToken(tokenUser);
+    await writeLog({
+      level: "info",
+      source: "api",
+      action: "auth.login",
+      message: `Signed in as ${user.role}.`,
+      email: user.email,
+      ip: requestIp(request),
+    });
     const response = NextResponse.json(
       { token, user: tokenUser },
       { headers: corsHeaders(request) }
@@ -45,6 +70,13 @@ export async function POST(request: Request) {
     response.cookies.set(COOKIE_NAME, token, cookieOptions());
     return response;
   } catch (error) {
+    await writeLog({
+      level: "error",
+      source: "api",
+      action: "auth.login",
+      message: error instanceof Error ? error.message : "Login failed.",
+      ip: requestIp(request),
+    });
     return json(request, { error: "Login failed." }, 500);
   }
 }

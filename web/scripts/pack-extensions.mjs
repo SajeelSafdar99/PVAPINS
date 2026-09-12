@@ -32,6 +32,8 @@ function stripDemoHosts(manifestPath) {
 
 mkdirSync(outDir, { recursive: true });
 
+const versions = {};
+
 for (const pack of packs) {
   const live = path.join(repoRoot, pack.src);
   const bundled = path.join(webRoot, "extensions", pack.name);
@@ -51,6 +53,10 @@ for (const pack of packs) {
   if (existsSync(sharedSession)) {
     cpSync(sharedSession, path.join(bundled, "session.js"));
   }
+  const sharedUpdate = path.join(repoRoot, "shared", "update.js");
+  if (existsSync(sharedUpdate)) {
+    cpSync(sharedUpdate, path.join(bundled, "update.js"));
+  }
 
   writeFileSync(
     path.join(bundled, "config.js"),
@@ -61,8 +67,16 @@ for (const pack of packs) {
     stripDemoHosts(path.join(bundled, "manifest.json"));
   }
 
+  const manifest = JSON.parse(readFileSync(path.join(bundled, "manifest.json"), "utf8"));
+  versions[pack.name] = manifest.version;
+
   const zipPath = path.join(outDir, pack.zip);
   rmSync(zipPath, { force: true });
   execSync(`zip -r "${zipPath}" . -x "*.DS_Store"`, { cwd: bundled, stdio: "inherit" });
   console.log(`packed ${pack.zip} (${readdirSync(bundled).length} files) demo=${localDemo}`);
 }
+
+writeFileSync(
+  path.join(webRoot, "src/generated/extension-versions.json"),
+  `${JSON.stringify({ apply: versions.apply, capture: versions.capture }, null, 2)}\n`
+);

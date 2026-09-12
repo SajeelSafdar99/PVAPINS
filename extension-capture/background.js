@@ -1,4 +1,6 @@
-importScripts("config.js", "session.js");
+importScripts("config.js", "session.js", "update.js");
+
+const EXT_KIND = "capture";
 
 const ALARM = "pvapins-admin-sync";
 const PERIOD_MINUTES = 15;
@@ -26,6 +28,7 @@ async function api(path, options = {}) {
   if (!response.ok) {
     throw new Error(data.error || `Request failed (${response.status})`);
   }
+  flushLogs().catch(() => {});
   return data;
 }
 
@@ -81,27 +84,100 @@ async function scheduleRefresh(enabled) {
   }
 }
 
+const PENDING_LOGS_KEY = "pendingLogs";
+const MAX_PENDING_LOGS = 30;
+
+async function enqueueLog(entry) {
+  const { pendingLogs = [] } = await chrome.storage.local.get(PENDING_LOGS_KEY);
+  pendingLogs.push({ ...entry, queuedAt: new Date().toISOString() });
+  await chrome.storage.local.set({ [PENDING_LOGS_KEY]: pendingLogs.slice(-MAX_PENDING_LOGS) });
+}
+
+async function postLog(base, token, entry) {
+  const response = await fetch(`${base}/api/logs`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${token}`,
+    },
+    body: JSON.stringify({
+      level: entry.level || "error",
+      source: "capture",
+      action: entry.action,
+      message: String(entry.message).slice(0, 500),
+    }),
+  });
+  return response.ok;
+}
+
+async function flushLogs() {
+  const saved = await chrome.storage.local.get(["apiUrl", "token", PENDING_LOGS_KEY]);
+  const base = String(saved.apiUrl || DEFAULT_API_URL || "").replace(/\/$/, "");
+  const pending = Array.isArray(saved.pendingLogs) ? saved.pendingLogs : [];
+  if (!base || !saved.token || pending.length === 0) return;
+  const remaining = [];
+  for (const entry of pending) {
+    try {
+      if (!(await postLog(base, saved.token, entry))) remaining.push(entry);
+    } catch {
+      remaining.push(entry);
+    }
+  }
+  await chrome.storage.local.set({ [PENDING_LOGS_KEY]: remaining });
+}
+
+async function reportLog(action, message, level = "error") {
+  const entry = { action, message: String(message), level };
+  try {
+    const { apiUrl, token } = await chrome.storage.local.get(["apiUrl", "token"]);
+    const base = String(apiUrl || DEFAULT_API_URL || "").replace(/\/$/, "");
+    if (!base || !token) {
+      await enqueueLog(entry);
+      return;
+    }
+    if (!(await postLog(base, token, entry))) {
+      await enqueueLog(entry);
+      return;
+    }
+    await flushLogs();
+  } catch {
+    await enqueueLog(entry);
+  }
+}
+
 async function runSync() {
   try {
-    await syncNow();
+    const result = await syncNow();
+    if (!result?.skipped && !result?.unchanged) {
+      await reportLog("session.sync", `Pushed to ${result?.assigned || "users"}.`, "info");
+    }
   } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
     await chrome.storage.local.set({
       lastSync: {
         at: new Date().toISOString(),
-        error: error instanceof Error ? error.message : String(error),
+        error: message,
       },
     });
+    await reportLog("session.sync", message);
   }
+  checkForUpdate().catch(() => {});
+}
+
+async function checkForUpdate() {
+  return UpdateLib.check(EXT_KIND);
 }
 
 chrome.runtime.onInstalled.addListener(async () => {
   const { autoRefresh } = await chrome.storage.local.get("autoRefresh");
   await scheduleRefresh(Boolean(autoRefresh));
+  checkForUpdate().catch(() => {});
 });
 
 chrome.runtime.onStartup.addListener(async () => {
   const { autoRefresh } = await chrome.storage.local.get("autoRefresh");
   await scheduleRefresh(Boolean(autoRefresh));
+  checkForUpdate().catch(() => {});
 });
 
 chrome.alarms.onAlarm.addListener((alarm) => {
@@ -111,6 +187,37 @@ chrome.alarms.onAlarm.addListener((alarm) => {
 chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
   if (message?.type === "SET_AUTO_REFRESH") {
     scheduleRefresh(Boolean(message.enabled))
+      .then(() => {
+        flushLogs().catch(() => {});
+        sendResponse({ ok: true });
+      })
+      .catch((error) => sendResponse({ error: error instanceof Error ? error.message : String(error) }));
+    return true;
+  }
+
+  if (message?.type === "REPORT_LOG") {
+    reportLog(message.action || "client", message.message || "Unknown error", message.level || "error")
+      .then(() => sendResponse({ ok: true }))
+      .catch(() => sendResponse({ ok: false }));
+    return true;
+  }
+
+  if (message?.type === "FLUSH_LOGS") {
+    flushLogs()
+      .then(() => sendResponse({ ok: true }))
+      .catch(() => sendResponse({ ok: false }));
+    return true;
+  }
+
+  if (message?.type === "CHECK_UPDATE") {
+    checkForUpdate()
+      .then(sendResponse)
+      .catch((error) => sendResponse({ error: error instanceof Error ? error.message : String(error) }));
+    return true;
+  }
+
+  if (message?.type === "DOWNLOAD_UPDATE") {
+    UpdateLib.download(message.zipUrl, message.filename)
       .then(() => sendResponse({ ok: true }))
       .catch((error) => sendResponse({ error: error instanceof Error ? error.message : String(error) }));
     return true;
@@ -135,6 +242,7 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
       chrome.storage.local.set({
         lastSync: { at: new Date().toISOString(), error: messageText },
       });
+      reportLog("session.sync", messageText);
       sendResponse({ error: messageText });
     });
 

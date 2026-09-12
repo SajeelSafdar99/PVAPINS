@@ -6,6 +6,8 @@ import { ChangePasswordForm } from "@/components/ChangePasswordForm";
 import { ExtensionDownload } from "@/components/ExtensionDownload";
 import { AdminGuide } from "@/components/guides";
 import { api } from "@/lib/api";
+import { EXTENSIONS } from "@/lib/extensions";
+import { LogsPanel } from "./logs-panel";
 
 type UserRow = {
   id: string;
@@ -40,7 +42,7 @@ const badgeClass: Record<SessionKind, string> = {
 
 const field = "field";
 
-type TabKey = "home" | "users" | "guide" | "password";
+type TabKey = "home" | "users" | "logs" | "guide" | "password";
 
 const TABS: { key: TabKey; label: string; title: string; subtitle: string }[] = [
   {
@@ -55,6 +57,12 @@ const TABS: { key: TabKey; label: string; title: string; subtitle: string }[] = 
     title: "Users and sessions",
     subtitle:
       "Add accounts, assign a Grammarly session, and manage everyone. Keep Capture signed in on a Chrome profile that stays logged into Grammarly so cookies refresh by themselves.",
+  },
+  {
+    key: "logs",
+    label: "Logs",
+    title: "Logs",
+    subtitle: "Trace logins, session assigns, and extension errors. Tokens and cookie values are never stored.",
   },
   {
     key: "guide",
@@ -310,6 +318,9 @@ export function AdminDashboard({
             <button className="btn-primary" onClick={() => setTab("users")}>
               Manage users
             </button>
+            <button className="btn-ghost" onClick={() => setTab("logs")}>
+              View logs
+            </button>
             <button className="btn-ghost" onClick={() => setTab("guide")}>
               Read the admin guide
             </button>
@@ -324,14 +335,16 @@ export function AdminDashboard({
               <ExtensionDownload
                 title="Capture extension"
                 description="Admin only. Sign in here, stay logged into app.grammarly.com, and turn on Keep session fresh so assigned cookies update by themselves."
-                href="/downloads/pvapins-capture.zip"
-                filename="pvapins-capture.zip"
+                href={EXTENSIONS.capture.path}
+                filename={EXTENSIONS.capture.filename}
+                version={EXTENSIONS.capture.version}
               />
               <ExtensionDownload
                 title="Apply extension (for users)"
                 description="Users download this from their own dashboard. You can grab a copy here to test."
-                href="/downloads/pvapins-apply.zip"
-                filename="pvapins-apply.zip"
+                href={EXTENSIONS.apply.path}
+                filename={EXTENSIONS.apply.filename}
+                version={EXTENSIONS.apply.version}
               />
             </div>
           </div>
@@ -514,6 +527,8 @@ export function AdminDashboard({
           ) : null}
         </div>
       ) : null}
+
+      {tab === "logs" ? <LogsPanel /> : null}
 
       {tab === "guide" ? <AdminGuide /> : null}
 

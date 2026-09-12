@@ -134,3 +134,11 @@ code {
 .toggle input {
   margin-top: 2px;
 }
+
+.update {
+  border-color: var(--accent);
+}
+
+#extVersion {
+  color: var(--muted);
+}

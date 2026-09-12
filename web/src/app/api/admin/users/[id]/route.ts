@@ -7,6 +7,7 @@ import {
   validPassword,
 } from "@/lib/auth";
 import { json, options } from "@/lib/http";
+import { requestIp, writeLog } from "@/lib/log";
 
 async function requireAdmin(request: Request) {
   await ensureSuperAdmin();
@@ -52,6 +53,14 @@ export async function PATCH(
   }
 
   const updated = await prisma.user.update({ where: { id }, data });
+  await writeLog({
+    level: "info",
+    source: "api",
+    action: "user.update",
+    message: data.passwordHash ? `Updated ${updated.email} (password changed).` : `Updated ${updated.email}.`,
+    email: admin.email,
+    ip: requestIp(request),
+  });
   return json(request, { id: updated.id, email: updated.email, role: updated.role });
 }
 
@@ -74,5 +83,13 @@ export async function DELETE(
   }
 
   await prisma.user.delete({ where: { id } });
+  await writeLog({
+    level: "warn",
+    source: "api",
+    action: "user.delete",
+    message: `Deleted user ${user.email}.`,
+    email: admin.email,
+    ip: requestIp(request),
+  });
   return json(request, { ok: true });
 }
