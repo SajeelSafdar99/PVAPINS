@@ -9,13 +9,20 @@ const outDir = path.join(webRoot, "public", "downloads");
 const localDemo = !process.env.VERCEL && process.env.NODE_ENV !== "production";
 const PRODUCTION_SITE = "https://seo.smspin.io";
 
-const siteUrl = localDemo
-  ? process.env.NEXT_PUBLIC_APP_URL || process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:3000"
-  : process.env.NEXT_PUBLIC_API_BASE_URL ||
-    process.env.NEXT_PUBLIC_APP_URL ||
-    (process.env.VERCEL_PROJECT_PRODUCTION_URL
-      ? `https://${process.env.VERCEL_PROJECT_PRODUCTION_URL}`
-      : PRODUCTION_SITE);
+function resolveSiteUrl() {
+  if (localDemo) {
+    const local =
+      process.env.NEXT_PUBLIC_APP_URL ||
+      process.env.NEXT_PUBLIC_API_BASE_URL ||
+      "http://localhost:3000";
+    return String(local).trim().replace(/\/$/, "") || "http://localhost:3000";
+  }
+
+  // Production zips always target the live site. Never bake localhost or a preview URL.
+  return PRODUCTION_SITE;
+}
+
+const siteUrl = resolveSiteUrl();
 
 const packs = [
   { name: "capture", src: "extension-capture", zip: "pvapins-capture.zip" },
