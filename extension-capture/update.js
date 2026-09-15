@@ -26,9 +26,12 @@ const UpdateLib = {
   async check(kind) {
     const current = chrome.runtime.getManifest().version;
     const { apiUrl } = await chrome.storage.local.get("apiUrl");
-    const base = String(apiUrl || DEFAULT_API_URL || "").replace(/\/$/, "");
+    const base = String(DEFAULT_API_URL || apiUrl || "").replace(/\/$/, "");
     if (!base) {
       return { current, available: false, skipped: true };
+    }
+    if (DEFAULT_API_URL) {
+      await chrome.storage.local.set({ apiUrl: String(DEFAULT_API_URL).replace(/\/$/, "") });
     }
 
     const origin = `${new URL(base).origin}/*`;

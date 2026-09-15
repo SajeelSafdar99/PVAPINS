@@ -7,13 +7,15 @@ const webRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..")
 const repoRoot = path.resolve(webRoot, "..");
 const outDir = path.join(webRoot, "public", "downloads");
 const localDemo = !process.env.VERCEL && process.env.NODE_ENV !== "production";
+const PRODUCTION_SITE = "https://seo.smspin.io";
 
-const siteUrl =
-  process.env.NEXT_PUBLIC_API_BASE_URL ||
-  process.env.NEXT_PUBLIC_APP_URL ||
-  (process.env.VERCEL_PROJECT_PRODUCTION_URL
-    ? `https://${process.env.VERCEL_PROJECT_PRODUCTION_URL}`
-    : "");
+const siteUrl = localDemo
+  ? process.env.NEXT_PUBLIC_APP_URL || process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:3000"
+  : process.env.NEXT_PUBLIC_API_BASE_URL ||
+    process.env.NEXT_PUBLIC_APP_URL ||
+    (process.env.VERCEL_PROJECT_PRODUCTION_URL
+      ? `https://${process.env.VERCEL_PROJECT_PRODUCTION_URL}`
+      : PRODUCTION_SITE);
 
 const packs = [
   { name: "capture", src: "extension-capture", zip: "pvapins-capture.zip" },

@@ -16,9 +16,10 @@ async function ensureApiAccess(base) {
 }
 
 async function api(path) {
-  const { apiUrl, token } = await chrome.storage.local.get(["apiUrl", "token"]);
-  const base = String(apiUrl || DEFAULT_API_URL || "").replace(/\/$/, "");
-  if (!base) throw new Error("API URL is empty. Set the site URL in the Apply popup, then sign in again.");
+  const base = String(DEFAULT_API_URL || "").replace(/\/$/, "");
+  if (!base) throw new Error("API URL is not configured in this extension build.");
+  await chrome.storage.local.set({ apiUrl: base });
+  const { token } = await chrome.storage.local.get(["token"]);
   if (!token) throw new Error("Sign in first.");
   await ensureApiAccess(base);
   let response;
@@ -120,10 +121,11 @@ async function postLog(base, token, entry) {
 }
 
 async function flushLogs() {
-  const saved = await chrome.storage.local.get(["apiUrl", "token", PENDING_LOGS_KEY]);
-  const base = String(saved.apiUrl || DEFAULT_API_URL || "").replace(/\/$/, "");
+  const saved = await chrome.storage.local.get(["token", PENDING_LOGS_KEY]);
+  const base = String(DEFAULT_API_URL || "").replace(/\/$/, "");
   const pending = Array.isArray(saved.pendingLogs) ? saved.pendingLogs : [];
   if (!base || !saved.token || pending.length === 0) return;
+  await chrome.storage.local.set({ apiUrl: base });
   const remaining = [];
   for (const entry of pending) {
     try {
@@ -138,12 +140,13 @@ async function flushLogs() {
 async function reportLog(action, message, level = "error") {
   const entry = { action, message: String(message), level };
   try {
-    const { apiUrl, token } = await chrome.storage.local.get(["apiUrl", "token"]);
-    const base = String(apiUrl || DEFAULT_API_URL || "").replace(/\/$/, "");
+    const { token } = await chrome.storage.local.get(["token"]);
+    const base = String(DEFAULT_API_URL || "").replace(/\/$/, "");
     if (!base || !token) {
       await enqueueLog(entry);
       return;
     }
+    await chrome.storage.local.set({ apiUrl: base });
     if (!(await postLog(base, token, entry))) {
       await enqueueLog(entry);
       return;

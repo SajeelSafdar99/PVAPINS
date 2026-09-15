@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "PVAPINS Capture (Admin)",
-  "version": "0.4.5",
+  "version": "0.4.6",
   "description": "Export a Grammarly web session and keep assigned cookies fresh from this Chrome profile.",
   "action": {
     "default_popup": "popup.html",
@@ -11,12 +11,12 @@
   "host_permissions": [
     "*://*.grammarly.com/*",
     "*://grammarly.com/*",
+    "https://seo.smspin.io/*",
+    "https://*.smspin.io/*",
     "http://localhost:3000/*",
     "https://*.vercel.app/*"
   ],
   "optional_host_permissions": [
-    "http://*/*",
-    "https://*/*",
     "*://*.pvapins.com/*",
     "*://pvapins.com/*"
   ],

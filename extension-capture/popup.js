@@ -1,5 +1,4 @@
 const statusEl = document.getElementById("status");
-const apiUrlEl = document.getElementById("apiUrl");
 const emailEl = document.getElementById("email");
 const passwordEl = document.getElementById("password");
 const loginBtn = document.getElementById("loginBtn");
@@ -24,7 +23,13 @@ function setStatus(message, kind) {
 }
 
 function apiBase() {
-  return apiUrlEl.value.trim().replace(/\/$/, "");
+  return String(DEFAULT_API_URL || "").replace(/\/$/, "");
+}
+
+async function lockApiUrl() {
+  const base = apiBase();
+  if (base) await chrome.storage.local.set({ apiUrl: base });
+  return base;
 }
 
 function selectedTarget() {
@@ -64,8 +69,8 @@ async function ensureApiAccess(base) {
 }
 
 async function api(path, options = {}) {
-  const base = apiBase();
-  if (!base) throw new Error("API URL is empty. Set the site URL in the Capture popup, then sign in again.");
+  const base = await lockApiUrl();
+  if (!base) throw new Error("API URL is not configured in this extension build.");
   await ensureApiAccess(base);
   const { token } = await chrome.storage.local.get("token");
   const headers = { ...(options.headers || {}) };
@@ -141,11 +146,8 @@ updateBtn.addEventListener("click", async () => {
 });
 
 async function restore() {
-  const saved = await chrome.storage.local.get(["apiUrl", "token", "user", "autoRefresh", "lastSync"]);
-  if (saved.apiUrl) apiUrlEl.value = saved.apiUrl;
-  else if (typeof DEFAULT_API_URL === "string" && DEFAULT_API_URL) {
-    apiUrlEl.value = DEFAULT_API_URL;
-  }
+  await lockApiUrl();
+  const saved = await chrome.storage.local.get(["token", "user", "autoRefresh", "lastSync"]);
   autoRefreshEl.checked = Boolean(saved.autoRefresh);
   if (saved.token && saved.user) {
     renderAuth(saved.user, saved.lastSync);
@@ -161,15 +163,11 @@ if (SessionLib.demoEnabled()) {
 }
 renderHint();
 
-apiUrlEl.addEventListener("change", () => {
-  chrome.storage.local.set({ apiUrl: apiBase() });
-});
-
 loginBtn.addEventListener("click", async () => {
   loginBtn.disabled = true;
   setStatus("Signing in…");
   try {
-    await chrome.storage.local.set({ apiUrl: apiBase() });
+    await lockApiUrl();
     const data = await api("/api/auth/login", {
       method: "POST",
       body: JSON.stringify({
@@ -222,7 +220,7 @@ syncBtn.addEventListener("click", async () => {
   syncBtn.disabled = true;
   setStatus("Reading Grammarly cookies and assigning them…");
   try {
-    await chrome.storage.local.set({ apiUrl: apiBase(), autoRefresh: true });
+    await chrome.storage.local.set({ autoRefresh: true });
     autoRefreshEl.checked = true;
     const result = await chrome.runtime.sendMessage({ type: "SYNC_NOW" });
     if (result?.error) {

@@ -34,8 +34,8 @@ export const adminGuideSections: GuideSection[] = [
         detail: "Use the upload if you exported a file by hand. Capture’s keep-fresh toggle does the same assign automatically.",
       },
       {
-        title: "Send the user this website URL plus their email and password.",
-        detail: "They sign in as a user, download Apply, and fetch the session you assigned.",
+        title: "Send the user https://seo.smspin.io plus their email and password.",
+        detail: "They sign in as a user, download Apply, and fetch the session you assigned. Apply does not ask for a URL.",
       },
       {
         title: "Use Edit if you need to change a user’s email or password.",
@@ -70,12 +70,8 @@ export const userGuideSections: GuideSection[] = [
         title: "Open the Apply extension from Chrome’s toolbar.",
       },
       {
-        title: "Set the API URL to this website if it is empty.",
-        detail: "Use the site address with no slash at the end, for example https://your-app.vercel.app",
-      },
-      {
         title: "Sign in with the same email and password you used on this website.",
-        detail: "You cannot upload a JSON. The admin already stored one for your account.",
+        detail: "Apply is already pointed at seo.smspin.io. You cannot upload a JSON — the admin already stored one for your account.",
       },
       {
         title: "Click Fetch assigned session, then Apply and open Grammarly once.",

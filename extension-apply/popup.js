@@ -1,5 +1,4 @@
 const statusEl = document.getElementById("status");
-const apiUrlEl = document.getElementById("apiUrl");
 const emailEl = document.getElementById("email");
 const passwordEl = document.getElementById("password");
 const loginBtn = document.getElementById("loginBtn");
@@ -26,7 +25,13 @@ function setStatus(message, kind) {
 }
 
 function apiBase() {
-  return apiUrlEl.value.trim().replace(/\/$/, "");
+  return String(DEFAULT_API_URL || "").replace(/\/$/, "");
+}
+
+async function lockApiUrl() {
+  const base = apiBase();
+  if (base) await chrome.storage.local.set({ apiUrl: base });
+  return base;
 }
 
 async function ensureApiAccess(base) {
@@ -39,8 +44,8 @@ async function ensureApiAccess(base) {
 }
 
 async function api(path, options = {}) {
-  const base = apiBase();
-  if (!base) throw new Error("API URL is empty. Set the site URL in the Apply popup, then sign in again.");
+  const base = await lockApiUrl();
+  if (!base) throw new Error("API URL is not configured in this extension build.");
   await ensureApiAccess(base);
   const { token } = await chrome.storage.local.get("token");
   const headers = { ...(options.headers || {}) };
@@ -124,11 +129,8 @@ updateBtn.addEventListener("click", async () => {
 });
 
 async function restore() {
-  const saved = await chrome.storage.local.get(["apiUrl", "token", "user", "autoRefresh", "lastPull"]);
-  if (saved.apiUrl) apiUrlEl.value = saved.apiUrl;
-  else if (typeof DEFAULT_API_URL === "string" && DEFAULT_API_URL) {
-    apiUrlEl.value = DEFAULT_API_URL;
-  }
+  await lockApiUrl();
+  const saved = await chrome.storage.local.get(["token", "user", "autoRefresh", "lastPull"]);
   autoRefreshEl.checked = saved.autoRefresh !== false;
   if (saved.token && saved.user) {
     renderAuth(saved.user);
@@ -147,15 +149,11 @@ async function restore() {
   }
 }
 
-apiUrlEl.addEventListener("change", () => {
-  chrome.storage.local.set({ apiUrl: apiBase() });
-});
-
 loginBtn.addEventListener("click", async () => {
   loginBtn.disabled = true;
   setStatus("Signing in…");
   try {
-    await chrome.storage.local.set({ apiUrl: apiBase() });
+    await lockApiUrl();
     const data = await api("/api/auth/login", {
       method: "POST",
       body: JSON.stringify({

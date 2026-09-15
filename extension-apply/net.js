@@ -20,11 +20,17 @@ const NetLib = {
   },
 
   async resolveBase() {
+    const baked = String((typeof DEFAULT_API_URL === "string" ? DEFAULT_API_URL : "") || "").replace(/\/$/, "");
+    if (baked) {
+      try {
+        await chrome.storage.local.set({ apiUrl: baked });
+      } catch {
+        // ignore
+      }
+      return baked;
+    }
     const { apiUrl } = await chrome.storage.local.get("apiUrl");
-    return String(apiUrl || (typeof DEFAULT_API_URL === "string" ? DEFAULT_API_URL : "") || "").replace(
-      /\/$/,
-      ""
-    );
+    return String(apiUrl || "").replace(/\/$/, "");
   },
 
   async hasOriginAccess(base) {
@@ -104,7 +110,7 @@ const NetLib = {
     const trimmed = String(base || "").trim();
 
     if (!trimmed) {
-      return "API URL is empty. Set the site URL in the extension popup, then sign in again.";
+      return "API URL is not configured in this extension build.";
     }
 
     const host = this.hostOf(trimmed);
