@@ -57,6 +57,10 @@ for (const pack of packs) {
   if (existsSync(sharedUpdate)) {
     cpSync(sharedUpdate, path.join(bundled, "update.js"));
   }
+  const sharedNet = path.join(repoRoot, "shared", "net.js");
+  if (existsSync(sharedNet)) {
+    cpSync(sharedNet, path.join(bundled, "net.js"));
+  }
 
   writeFileSync(
     path.join(bundled, "config.js"),

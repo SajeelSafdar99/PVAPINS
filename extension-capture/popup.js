@@ -65,7 +65,7 @@ async function ensureApiAccess(base) {
 
 async function api(path, options = {}) {
   const base = apiBase();
-  if (!base) throw new Error("Set the API URL first.");
+  if (!base) throw new Error("API URL is empty. Set the site URL in the Capture popup, then sign in again.");
   await ensureApiAccess(base);
   const { token } = await chrome.storage.local.get("token");
   const headers = { ...(options.headers || {}) };
@@ -73,12 +73,17 @@ async function api(path, options = {}) {
     headers["Content-Type"] = "application/json";
   }
   if (token) headers.Authorization = `Bearer ${token}`;
-  const response = await fetch(`${base}${path}`, { ...options, headers });
+  let response;
+  try {
+    response = await NetLib.fetchJson(`${base}${path}`, { ...options, headers });
+  } catch (error) {
+    throw new Error(await NetLib.explainFailure(base, error, path));
+  }
   const next = response.headers.get("X-Pvapins-Token");
   if (next) await chrome.storage.local.set({ token: next });
   const data = await response.json().catch(() => ({}));
   if (!response.ok) {
-    throw new Error(data.error || `Request failed (${response.status})`);
+    throw new Error(data.error || `Request failed (${response.status}) at ${NetLib.hostOf(base)}${path}`);
   }
   return data;
 }

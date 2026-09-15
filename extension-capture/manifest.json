@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "PVAPINS Capture (Admin)",
-  "version": "0.4.4",
+  "version": "0.4.5",
   "description": "Export a Grammarly web session and keep assigned cookies fresh from this Chrome profile.",
   "action": {
     "default_popup": "popup.html",

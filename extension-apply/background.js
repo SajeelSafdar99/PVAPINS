@@ -1,4 +1,4 @@
-importScripts("config.js", "session.js", "update.js");
+importScripts("config.js", "session.js", "update.js", "net.js");
 
 const EXT_KIND = "apply";
 
@@ -8,23 +8,32 @@ const PERIOD_MINUTES = 5;
 async function ensureApiAccess(base) {
   const origin = `${new URL(base).origin}/*`;
   const have = await chrome.permissions.contains({ origins: [origin] });
-  if (!have) throw new Error("Open the Apply popup and sign in so API access can be granted.");
+  if (!have) {
+    throw new Error(
+      `No Chrome host permission for ${NetLib.hostOf(base) || base}. Open the Apply popup and sign in so API access can be granted.`
+    );
+  }
 }
 
 async function api(path) {
   const { apiUrl, token } = await chrome.storage.local.get(["apiUrl", "token"]);
   const base = String(apiUrl || DEFAULT_API_URL || "").replace(/\/$/, "");
-  if (!base) throw new Error("Set the API URL first.");
+  if (!base) throw new Error("API URL is empty. Set the site URL in the Apply popup, then sign in again.");
   if (!token) throw new Error("Sign in first.");
   await ensureApiAccess(base);
-  const response = await fetch(`${base}${path}`, {
-    headers: { Authorization: `Bearer ${token}` },
-  });
+  let response;
+  try {
+    response = await NetLib.fetchJson(`${base}${path}`, {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+  } catch (error) {
+    throw new Error(await NetLib.explainFailure(base, error, path));
+  }
   const next = response.headers.get("X-Pvapins-Token");
   if (next) await chrome.storage.local.set({ token: next });
   const data = await response.json().catch(() => ({}));
   if (!response.ok) {
-    throw new Error(data.error || `Request failed (${response.status})`);
+    throw new Error(data.error || `Request failed (${response.status}) at ${NetLib.hostOf(base)}${path}`);
   }
   flushLogs().catch(() => {});
   return data;
@@ -145,6 +154,15 @@ async function reportLog(action, message, level = "error") {
   }
 }
 
+async function describePullError(error) {
+  const raw = error instanceof Error ? error.message : String(error);
+  if (/host permission|API URL is empty|API URL is invalid|Chrome reports offline|Cannot reach|timed out|Transient network|Network error calling|Request failed \(/i.test(raw)) {
+    return raw;
+  }
+  const base = await NetLib.resolveBase();
+  return NetLib.explainFailure(base, error, "session.pull");
+}
+
 async function runPull() {
   try {
     const result = await pullIfUpdated();
@@ -152,7 +170,7 @@ async function runPull() {
       await reportLog("session.pull", `Applied ${result?.cookieResult?.set ?? 0} cookies.`, "info");
     }
   } catch (error) {
-    const message = error instanceof Error ? error.message : String(error);
+    const message = await describePullError(error);
     await chrome.storage.local.set({
       lastPull: {
         at: new Date().toISOString(),
@@ -226,8 +244,8 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
   if (message?.type === "PULL_SESSION") {
     pullIfUpdated()
       .then(sendResponse)
-      .catch((error) => {
-        const text = error instanceof Error ? error.message : String(error);
+      .catch(async (error) => {
+        const text = await describePullError(error);
         reportLog("session.pull", text);
         sendResponse({ error: text });
       });
